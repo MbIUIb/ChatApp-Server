@@ -1,11 +1,15 @@
 package server;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.security.*;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
+import java.util.*;
 
 /**
  * Класс обработчика клиента, реализующий интерфейс {@code Runnable}.
@@ -23,6 +27,9 @@ public class ClientHandler implements Runnable {
     private BufferedReader bufferedReader;
     private BufferedWriter bufferedWriter;
     private String clientUsername;
+    private PublicKey serverPublicKey;
+    private PrivateKey serverPrivateKey;
+    private static Map<String, PublicKey> clientsPublicKeys = new HashMap<>();
 
     /**
      * Конструктор класса {@code server.ClientHandler}. Определяет
@@ -30,14 +37,18 @@ public class ClientHandler implements Runnable {
      * @param socket сокет клиента
      */
     public ClientHandler(Socket socket) {
+        this.socket = socket;
+
         try {
+            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+            keyPairGenerator.initialize(2048);
 
-            this.socket = socket;
-            this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
-            this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+            KeyPair keyPair = keyPairGenerator.generateKeyPair();
 
-        } catch (IOException e) {
-            closeEverything(socket, bufferedReader, bufferedWriter);
+            serverPrivateKey = keyPair.getPrivate();
+            serverPublicKey = keyPair.getPublic();
+        } catch (NoSuchAlgorithmException e) {
+            System.out.println("Ошибка создания ключей сервера!");
         }
 
     }
@@ -49,13 +60,46 @@ public class ClientHandler implements Runnable {
      */
     @Override
     public void run() {
+        PublicKey clientPublicKey;
+        try {
+            ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+            ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
+
+            // получение публичного ключа клиента
+            clientPublicKey = (PublicKey) in.readObject();
+
+            //отправка публичного ключа сервера
+            out.writeObject(serverPublicKey);
+            out.flush();
+
+//            in.close();
+//            out.close();
+        } catch (Exception e) {
+            System.out.println(e);
+            e.printStackTrace();
+            throw new RuntimeException();
+        }
 
         try {
-            // ожидание получения имени клиета
-            this.clientUsername = bufferedReader.readLine();
+
+            this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
+            this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+
         } catch (IOException e) {
             closeEverything(socket, bufferedReader, bufferedWriter);
         }
+
+        try {
+            // ожидание получения имени клиета
+            String mes = bufferedReader.readLine();
+            this.clientUsername = decryptMessage(mes);
+            addClientPublicKey(clientUsername, clientPublicKey);
+            System.out.println(clientUsername);
+        } catch (IOException e) {
+            closeEverything(socket, bufferedReader, bufferedWriter);
+            System.out.println("Ошибка получения имени клиента!");
+        }
+
         clientHandlers.add(this);
         broadcastMessage(clientUsername + " has connected.", true);
 
@@ -64,7 +108,7 @@ public class ClientHandler implements Runnable {
         while (socket.isConnected()) {
              try {
                  messageFromClient = bufferedReader.readLine();
-                 broadcastMessage(messageFromClient, false);
+                 broadcastMessage(decryptMessage(messageFromClient), false);
              } catch (IOException e) {
                  closeEverything(socket, bufferedReader, bufferedWriter);
                  break;
@@ -83,7 +127,7 @@ public class ClientHandler implements Runnable {
 
         for (ClientHandler clientHandler : clientHandlers) {
             String senderUsername;
-            SimpleDateFormat formatter = new SimpleDateFormat("dd:MM:yyyy HH:mm");
+            SimpleDateFormat formatter = new SimpleDateFormat("dd.MM.yyyy HH:mm");
 
             try {
                 if (!clientHandler.clientUsername.equals(clientUsername)) {
@@ -92,8 +136,9 @@ public class ClientHandler implements Runnable {
                         senderUsername = clientUsername + ": ";
                     } else senderUsername = "SERVER: ";
 
-                    clientHandler.bufferedWriter.write("[" + formatter.format(new Date()) + "]" +
-                            senderUsername + messageToSend);
+                    String msg = "[" + formatter.format(new Date()) + "]" + senderUsername + messageToSend;
+
+                    clientHandler.bufferedWriter.write(encryptMessage(msg, clientsPublicKeys.get(clientHandler.clientUsername)));
                     clientHandler.bufferedWriter.newLine();
                     clientHandler.bufferedWriter.flush();
 
@@ -104,6 +149,49 @@ public class ClientHandler implements Runnable {
 
         }
 
+    }
+
+    private void addClientPublicKey(String clientUsername, PublicKey publicKey) {
+        clientsPublicKeys.put(clientUsername, publicKey);
+    }
+
+    private String encryptMessageByName(String messageToEncrypt, String clientUsername) {
+        PublicKey clientPublicKey = clientsPublicKeys.get(clientUsername);
+        return this.encryptMessage(messageToEncrypt, clientPublicKey);
+    }
+
+    private String encryptMessage(String messageToEncrypt, PublicKey clientPublicKey) {
+        if (clientPublicKey == null)
+            throw new RuntimeException("Неизвестный клиент!");
+
+        try {
+            Cipher cipher = Cipher.getInstance("RSA");
+            cipher.init(Cipher.ENCRYPT_MODE, clientPublicKey);
+
+            byte[] messageToEncryptBytes = messageToEncrypt.getBytes(StandardCharsets.UTF_8);
+            byte[] encryptedMessage = cipher.doFinal(messageToEncryptBytes);
+
+            return Base64.getEncoder().encodeToString(encryptedMessage);
+        } catch (NoSuchPaddingException | IllegalBlockSizeException | NoSuchAlgorithmException | BadPaddingException |
+                 InvalidKeyException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private String decryptMessage(String messageToDecrypt) {
+        byte[] messageToDecryptBytes = Base64.getDecoder().decode(messageToDecrypt);
+
+        try {
+            Cipher cipher = Cipher.getInstance("RSA");
+            cipher.init(Cipher.DECRYPT_MODE, serverPrivateKey);
+
+            byte[] decryptedMessage = cipher.doFinal(messageToDecryptBytes);
+
+            return new String(decryptedMessage, StandardCharsets.UTF_8);
+        } catch (NoSuchPaddingException | IllegalBlockSizeException | NoSuchAlgorithmException | BadPaddingException |
+                 InvalidKeyException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
