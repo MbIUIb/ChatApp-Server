@@ -26,9 +26,12 @@ public class ClientHandler implements Runnable {
     private Socket socket;
     private BufferedReader bufferedReader;
     private BufferedWriter bufferedWriter;
+    private ObjectOutputStream objectOutputStream;
+    private ObjectInputStream objectInputStream;
     private String clientUsername;
     private PublicKey serverPublicKey;
     private PrivateKey serverPrivateKey;
+    PublicKey clientPublicKey = null;
     private static Map<String, PublicKey> clientsPublicKeys = new HashMap<>();
 
     /**
@@ -40,6 +43,21 @@ public class ClientHandler implements Runnable {
         this.socket = socket;
 
         try {
+            this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
+            this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            closeEverything();
+        }
+
+        try {
+            objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+            objectInputStream = new ObjectInputStream(socket.getInputStream());
+        } catch (IOException e) {
+            throw new RuntimeException(e); // обработать исключение
+        }
+
+        try {
+            // создание публичного и приватного ключей сервера
             KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
             keyPairGenerator.initialize(2048);
 
@@ -47,6 +65,7 @@ public class ClientHandler implements Runnable {
 
             serverPrivateKey = keyPair.getPrivate();
             serverPublicKey = keyPair.getPublic();
+
         } catch (NoSuchAlgorithmException e) {
             System.out.println("Ошибка создания ключей сервера!");
         }
@@ -60,33 +79,16 @@ public class ClientHandler implements Runnable {
      */
     @Override
     public void run() {
-        PublicKey clientPublicKey;
         try {
-            ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
-            ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
-
             // получение публичного ключа клиента
-            clientPublicKey = (PublicKey) in.readObject();
+            clientPublicKey = (PublicKey) objectInputStream.readObject();
 
-            //отправка публичного ключа сервера
-            out.writeObject(serverPublicKey);
-            out.flush();
+            //отправка публичного ключа сервера клиенту
+            objectOutputStream.writeObject(serverPublicKey);
+            objectOutputStream.flush();
 
-//            in.close();
-//            out.close();
         } catch (Exception e) {
             System.out.println(e);
-            e.printStackTrace();
-            throw new RuntimeException();
-        }
-
-        try {
-
-            this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
-            this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
-
-        } catch (IOException e) {
-            closeEverything(socket, bufferedReader, bufferedWriter);
         }
 
         try {
@@ -96,7 +98,7 @@ public class ClientHandler implements Runnable {
             addClientPublicKey(clientUsername, clientPublicKey);
             System.out.println(clientUsername);
         } catch (IOException e) {
-            closeEverything(socket, bufferedReader, bufferedWriter);
+            closeEverything();
             System.out.println("Ошибка получения имени клиента!");
         }
 
@@ -110,7 +112,7 @@ public class ClientHandler implements Runnable {
                  messageFromClient = bufferedReader.readLine();
                  broadcastMessage(decryptMessage(messageFromClient), false);
              } catch (IOException e) {
-                 closeEverything(socket, bufferedReader, bufferedWriter);
+                 closeEverything();
                  break;
              }
         }
@@ -144,7 +146,7 @@ public class ClientHandler implements Runnable {
 
                 }
             } catch (IOException e) {
-                closeEverything(socket, bufferedReader, bufferedWriter);
+                closeEverything();
             }
 
         }
@@ -205,11 +207,8 @@ public class ClientHandler implements Runnable {
 
     /**
      * Закрывает все сокеты и потоки ввода/вывода
-     * @param socket
-     * @param bufferedReader
-     * @param bufferedWriter
      */
-    public void closeEverything(Socket socket, BufferedReader bufferedReader, BufferedWriter bufferedWriter) {
+    public void closeEverything() {
 
         removeClientHandler();
         try {
@@ -219,6 +218,12 @@ public class ClientHandler implements Runnable {
             }
             if (bufferedWriter != null) {
                 bufferedWriter.close();
+            }
+            if (objectInputStream != null) {
+                objectInputStream.close();
+            }
+            if (objectOutputStream != null) {
+                objectOutputStream.close();
             }
             if (socket != null) {
                 socket.close();

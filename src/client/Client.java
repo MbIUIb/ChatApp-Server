@@ -16,6 +16,8 @@ public class Client {
     private Socket socket;
     private BufferedReader bufferedReader;
     private BufferedWriter bufferedWriter;
+    private ObjectOutputStream objectOutputStream;
+    private ObjectInputStream objectInputStream;
     private String username;
     private String age;
     private String phoneNumber;
@@ -28,7 +30,22 @@ public class Client {
         this.username = username;
 
         try {
+            this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+        } catch (IOException e) {
+            closeEverything();
+        }
 
+        try {
+            objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
+            objectInputStream = new ObjectInputStream(socket.getInputStream());
+        } catch (IOException e) {
+            closeEverything();
+        }
+
+
+        try {
+            // создание публичного и приватного ключей клиента
             KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
             keyPairGenerator.initialize(2048);
 
@@ -46,32 +63,15 @@ public class Client {
     public void startClient() {
 
         try {
-            ObjectOutputStream objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
-            ObjectInputStream objectInputStream = new ObjectInputStream(socket.getInputStream());
-
             // отправка публичного ключа клиента
             objectOutputStream.writeObject(clientPublicKey);
             objectOutputStream.flush();
 
-
             // получение публичного ключа сервера
             serverPublicKey = (PublicKey) objectInputStream.readObject();
 
-//            objectInputStream.close();
-//            objectOutputStream.close();
-
         } catch (Exception e) {
             System.out.println("Ошибка обмена ключами: "+ e);
-        }
-
-        try {
-
-            this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-            this.username = username;
-
-        } catch (IOException e) {
-            closeEverything(socket, bufferedReader, bufferedWriter);
         }
 
         try {
@@ -103,11 +103,9 @@ public class Client {
             }
 
         } catch (IOException e) {
-            closeEverything(socket, bufferedReader, bufferedWriter);
+            closeEverything();
             System.out.println("Ошибка отправки сообщения");
-        } //finally {
-//            closeEverything(socket, bufferedReader, bufferedWriter);
-//        }
+        }
 
     }
 
@@ -126,7 +124,7 @@ public class Client {
                         System.out.println(decryptMessage(messageFromChat));
 
                     } catch (IOException e) {
-                        closeEverything(socket, bufferedReader, bufferedWriter);
+                        closeEverything();
                     }
                 }
 
@@ -168,7 +166,7 @@ public class Client {
         }
     }
 
-    public void closeEverything(Socket socket, BufferedReader bufferedReader, BufferedWriter bufferedWriter) {
+    public void closeEverything() {
 
         try {
 
@@ -177,6 +175,12 @@ public class Client {
             }
             if (bufferedWriter != null) {
                 bufferedWriter.close();
+            }
+            if (objectInputStream != null) {
+                objectInputStream.close();
+            }
+            if (objectOutputStream != null) {
+                objectOutputStream.close();
             }
             if (socket != null) {
                 socket.close();
