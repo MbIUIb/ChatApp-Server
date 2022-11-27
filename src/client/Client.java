@@ -20,14 +20,15 @@ public class Client {
     private ObjectInputStream objectInputStream;
     private String username;
     private String age;
-    private String phoneNumber;
+    private String email;
     private PublicKey clientPublicKey;
     private PrivateKey clientPrivateKey;
     private PublicKey serverPublicKey;
 
-    public Client(Socket socket, String username) {
+    public Client(Socket socket, String username, String email) {
         this.socket = socket;
         this.username = username;
+        this.email = email;
 
         try {
             this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -76,6 +77,10 @@ public class Client {
 
         try {
             bufferedWriter.write(encryptMessage(username));
+            bufferedWriter.newLine();
+            bufferedWriter.flush();
+
+            bufferedWriter.write(encryptMessage(email));
             bufferedWriter.newLine();
             bufferedWriter.flush();
         } catch (IOException e) {
@@ -196,11 +201,15 @@ public class Client {
 
         Scanner scanner = new Scanner(System.in);
         String username = null;
+        String email = null;
         boolean flag = true;
 
         while (flag) {
             System.out.println("Введите свой ник для чата: ");
             username = scanner.nextLine();
+
+            System.out.println("Введите email: ");
+            email = scanner.nextLine();
 
             if (username != null && !username.equals("")) {
                 flag = false;
@@ -209,7 +218,7 @@ public class Client {
 
 
         Socket socket = new Socket("localhost", 9090);
-        Client client = new Client(socket, username);
+        Client client = new Client(socket, username, email);
         client.startClient();
 
     }

@@ -28,7 +28,10 @@ public class ClientHandler implements Runnable {
     private BufferedWriter bufferedWriter;
     private ObjectOutputStream objectOutputStream;
     private ObjectInputStream objectInputStream;
+    EmailSender emailSender;
     private String clientUsername;
+    private String clientPassword;
+    private String clientEmail;
     private PublicKey serverPublicKey;
     private PrivateKey serverPrivateKey;
     PublicKey clientPublicKey = null;
@@ -59,7 +62,7 @@ public class ClientHandler implements Runnable {
         try {
             // создание публичного и приватного ключей сервера
             KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-            keyPairGenerator.initialize(2048);
+            keyPairGenerator.initialize(4096);
 
             KeyPair keyPair = keyPairGenerator.generateKeyPair();
 
@@ -70,6 +73,7 @@ public class ClientHandler implements Runnable {
             System.out.println("Ошибка создания ключей сервера!");
         }
 
+        emailSender = new EmailSender();
     }
 
     /**
@@ -88,15 +92,20 @@ public class ClientHandler implements Runnable {
             objectOutputStream.flush();
 
         } catch (Exception e) {
-            System.out.println(e);
+            System.out.println("Ошибка обмена ключами: " + e);
         }
 
         try {
             // ожидание получения имени клиета
-            String mes = bufferedReader.readLine();
-            this.clientUsername = decryptMessage(mes);
+            String username = bufferedReader.readLine();
+            this.clientUsername = decryptMessage(username);
+
+            String email = bufferedReader.readLine();
+            this.clientEmail = decryptMessage(email);
+
             addClientPublicKey(clientUsername, clientPublicKey);
-            System.out.println(clientUsername);
+            emailSender.sendMessage("Приветствие JavaChat", clientUsername + ", приветствуем в JavaChat!\n" +
+                    "Спасибо, что пользуетесь нашим чатом!");
         } catch (IOException e) {
             closeEverything();
             System.out.println("Ошибка получения имени клиента!");
@@ -194,6 +203,17 @@ public class ClientHandler implements Runnable {
                  InvalidKeyException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private String generateSecretCode(int length) {
+        String characters = "qwertyuiopasdfghjklzxcvbnm1234567890QWERTYUIOASDFGHJKLZXCVBNM";
+        Random rnd = new Random();
+        char[] text = new char[length];
+        for (int i = 0; i < length; i++)
+        {
+            text[i] = characters.charAt(rnd.nextInt(characters.length()));
+        }
+        return new String(text);
     }
 
     /**
