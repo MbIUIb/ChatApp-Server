@@ -8,10 +8,12 @@ import java.util.Properties;
 public class EmailSender {
     private final String serverEmailAddress = "";
     private final String password = "";
+    private final String emailAddress;
     private Properties prop;
     private Session session;
 
-    public EmailSender() {
+    public EmailSender(String emailAddress) {
+        this.emailAddress = emailAddress;
         prop = new Properties();
         prop.put("mail.smtp.host", "smtp.gmail.com");
         prop.put("mail.smtp.port", "587");
@@ -33,7 +35,7 @@ public class EmailSender {
             message.setFrom(new InternetAddress("mbiuib7@gmail.com"));
             message.setRecipients(
                     Message.RecipientType.TO,
-                    InternetAddress.parse("kirill.chezlov@gmail.com")
+                    InternetAddress.parse(emailAddress)
             );
             message.setSubject(subj);
             message.setText(text);

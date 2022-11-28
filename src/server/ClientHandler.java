@@ -72,8 +72,6 @@ public class ClientHandler implements Runnable {
         } catch (NoSuchAlgorithmException e) {
             System.out.println("Ошибка создания ключей сервера!");
         }
-
-        emailSender = new EmailSender();
     }
 
     /**
@@ -102,6 +100,7 @@ public class ClientHandler implements Runnable {
 
             String email = bufferedReader.readLine();
             this.clientEmail = decryptMessage(email);
+            emailSender = new EmailSender(clientEmail);
 
             addClientPublicKey(clientUsername, clientPublicKey);
             emailSender.sendMessage("Приветствие JavaChat", clientUsername + ", приветствуем в JavaChat!\n" +
