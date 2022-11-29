@@ -1,12 +1,10 @@
 package server;
 
-import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -24,19 +22,16 @@ public class ClientHandler implements Runnable {
 
     public static ArrayList<ClientHandler> clientHandlers = new ArrayList<>();
     private Socket socket;
-    private BufferedReader bufferedReader;
-    private BufferedWriter bufferedWriter;
     private ObjectOutputStream objectOutputStream;
     private ObjectInputStream objectInputStream;
     private EmailSender emailSender;
-    private Cryptographer cryptographer;
+    private PGP pgp;
     private String clientUsername;
     private String clientPassword;
     private String clientEmail;
-    private PublicKey serverPublicKey;
-    private PrivateKey serverPrivateKey;
-    PublicKey clientPublicKey = null;
-    private static Map<String, PublicKey> clientsPublicKeys = new HashMap<>();
+    private String serverPublicKey;
+    private String serverPrivateKey;
+    String clientPublicKey;
 
     /**
      * Конструктор класса {@code server.ClientHandler}. Определяет
@@ -46,12 +41,9 @@ public class ClientHandler implements Runnable {
     public ClientHandler(Socket socket) {
         this.socket = socket;
 
-        try {
-            this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
-            this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
-        } catch (IOException e) {
-            closeEverything();
-        }
+        pgp = new PGP("server");
+        serverPublicKey = getStringFromFile(pgp.getPublicKeyFilepath("server"));
+        serverPrivateKey = getStringFromFile(pgp.getPrivateKeyFilepath("server"));
 
         try {
             objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
@@ -60,21 +52,6 @@ public class ClientHandler implements Runnable {
             throw new RuntimeException(e); // обработать исключение
         }
 
-        try {
-            // создание публичного и приватного ключей сервера
-            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-            keyPairGenerator.initialize(4096);
-
-            KeyPair keyPair = keyPairGenerator.generateKeyPair();
-
-            serverPrivateKey = keyPair.getPrivate();
-            serverPublicKey = keyPair.getPublic();
-
-        } catch (NoSuchAlgorithmException e) {
-            System.out.println("Ошибка создания ключей сервера!");
-        }
-
-        cryptographer = new Cryptographer("RSA");
     }
 
     /**
@@ -86,7 +63,7 @@ public class ClientHandler implements Runnable {
     public void run() {
         try {
             // получение публичного ключа клиента
-            clientPublicKey = (PublicKey) objectInputStream.readObject();
+            clientPublicKey = (String) objectInputStream.readObject();
 
             //отправка публичного ключа сервера клиенту
             objectOutputStream.writeObject(serverPublicKey);
@@ -98,17 +75,17 @@ public class ClientHandler implements Runnable {
 
         try {
             // ожидание получения имени клиета
-            String username = bufferedReader.readLine();
-            this.clientUsername = cryptographer.decryptString(username, serverPrivateKey);
+            String username = (String) objectInputStream.readObject();
+            this.clientUsername = pgp.decryptString(username, "server");
+            System.out.println(clientUsername);
 
-            String email = bufferedReader.readLine();
-            this.clientEmail = cryptographer.decryptString(email, serverPrivateKey);
+            String email = (String) objectInputStream.readObject();
+            this.clientEmail = pgp.decryptString(email, "server");
             emailSender = new EmailSender(clientEmail);
 
-            addClientPublicKey(clientUsername, clientPublicKey);
-            emailSender.sendMessage("Приветствие JavaChat", clientUsername + ", приветствуем в JavaChat!\n" +
-                    "Спасибо, что пользуетесь нашим чатом!\n" + "Секретный код: " + cryptographer.generateSecretCode(6));
-        } catch (IOException e) {
+            writeStringToFile(clientPublicKey, clientUsername);
+
+        } catch (IOException | ClassNotFoundException e) {
             closeEverything();
             System.out.println("Ошибка получения имени клиента!");
         }
@@ -120,9 +97,9 @@ public class ClientHandler implements Runnable {
         String messageFromClient;
         while (socket.isConnected()) {
              try {
-                 messageFromClient = bufferedReader.readLine();
-                 broadcastMessage(cryptographer.decryptString(messageFromClient, serverPrivateKey), false);
-             } catch (IOException e) {
+                 messageFromClient = (String) objectInputStream.readObject();
+                 broadcastMessage(pgp.decryptString(messageFromClient, "server"), false);
+             } catch (IOException | ClassNotFoundException e) {
                  closeEverything();
                  break;
              }
@@ -151,9 +128,8 @@ public class ClientHandler implements Runnable {
 
                     String msg = "[" + formatter.format(new Date()) + "]" + senderUsername + messageToSend;
 
-                    clientHandler.bufferedWriter.write(encryptMessageByName(msg, clientHandler.clientUsername));
-                    clientHandler.bufferedWriter.newLine();
-                    clientHandler.bufferedWriter.flush();
+                    clientHandler.objectOutputStream.writeObject(pgp.encryptString(msg, clientHandler.clientUsername));
+                    clientHandler.objectOutputStream.flush();
 
                 }
             } catch (IOException e) {
@@ -164,13 +140,25 @@ public class ClientHandler implements Runnable {
 
     }
 
-    private void addClientPublicKey(String clientUsername, PublicKey publicKey) {
-        clientsPublicKeys.put(clientUsername, publicKey);
+    private String getStringFromFile(String path) {
+        try {
+            return new String(Files.readAllBytes(Paths.get(path)));
+        } catch (IOException e) {
+            System.err.println("Ошибка чтения файла: " + e);
+        }
+        return null;
     }
 
-    private String encryptMessageByName(String messageToEncrypt, String clientUsername) {
-        PublicKey clientPublicKey = clientsPublicKeys.get(clientUsername);
-        return cryptographer.encryptString(messageToEncrypt, clientPublicKey);
+    private void writeStringToFile(String str, String username) {
+        try {
+            String path = "src/server/res/PublicKey_" + username + ".pgp";
+            BufferedWriter writer = new BufferedWriter(new FileWriter(path));
+            writer.write(str);
+            writer.flush();
+            writer.close();
+        } catch (IOException e) {
+            System.err.println("Ошибка записи ключа в файл: " + e);
+        }
     }
 
     /**
@@ -189,13 +177,6 @@ public class ClientHandler implements Runnable {
 
         removeClientHandler();
         try {
-
-            if (bufferedReader != null) {
-                bufferedReader.close();
-            }
-            if (bufferedWriter != null) {
-                bufferedWriter.close();
-            }
             if (objectInputStream != null) {
                 objectInputStream.close();
             }
