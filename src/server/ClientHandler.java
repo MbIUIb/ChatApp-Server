@@ -28,7 +28,8 @@ public class ClientHandler implements Runnable {
     private BufferedWriter bufferedWriter;
     private ObjectOutputStream objectOutputStream;
     private ObjectInputStream objectInputStream;
-    EmailSender emailSender;
+    private EmailSender emailSender;
+    private Cryptographer cryptographer;
     private String clientUsername;
     private String clientPassword;
     private String clientEmail;
@@ -72,6 +73,8 @@ public class ClientHandler implements Runnable {
         } catch (NoSuchAlgorithmException e) {
             System.out.println("Ошибка создания ключей сервера!");
         }
+
+        cryptographer = new Cryptographer("RSA");
     }
 
     /**
@@ -96,15 +99,15 @@ public class ClientHandler implements Runnable {
         try {
             // ожидание получения имени клиета
             String username = bufferedReader.readLine();
-            this.clientUsername = decryptMessage(username);
+            this.clientUsername = cryptographer.decryptString(username, serverPrivateKey);
 
             String email = bufferedReader.readLine();
-            this.clientEmail = decryptMessage(email);
+            this.clientEmail = cryptographer.decryptString(email, serverPrivateKey);
             emailSender = new EmailSender(clientEmail);
 
             addClientPublicKey(clientUsername, clientPublicKey);
             emailSender.sendMessage("Приветствие JavaChat", clientUsername + ", приветствуем в JavaChat!\n" +
-                    "Спасибо, что пользуетесь нашим чатом!");
+                    "Спасибо, что пользуетесь нашим чатом!\n" + "Секретный код: " + cryptographer.generateSecretCode(6));
         } catch (IOException e) {
             closeEverything();
             System.out.println("Ошибка получения имени клиента!");
@@ -118,7 +121,7 @@ public class ClientHandler implements Runnable {
         while (socket.isConnected()) {
              try {
                  messageFromClient = bufferedReader.readLine();
-                 broadcastMessage(decryptMessage(messageFromClient), false);
+                 broadcastMessage(cryptographer.decryptString(messageFromClient, serverPrivateKey), false);
              } catch (IOException e) {
                  closeEverything();
                  break;
@@ -148,7 +151,7 @@ public class ClientHandler implements Runnable {
 
                     String msg = "[" + formatter.format(new Date()) + "]" + senderUsername + messageToSend;
 
-                    clientHandler.bufferedWriter.write(encryptMessage(msg, clientsPublicKeys.get(clientHandler.clientUsername)));
+                    clientHandler.bufferedWriter.write(encryptMessageByName(msg, clientHandler.clientUsername));
                     clientHandler.bufferedWriter.newLine();
                     clientHandler.bufferedWriter.flush();
 
@@ -167,52 +170,7 @@ public class ClientHandler implements Runnable {
 
     private String encryptMessageByName(String messageToEncrypt, String clientUsername) {
         PublicKey clientPublicKey = clientsPublicKeys.get(clientUsername);
-        return this.encryptMessage(messageToEncrypt, clientPublicKey);
-    }
-
-    private String encryptMessage(String messageToEncrypt, PublicKey clientPublicKey) {
-        if (clientPublicKey == null)
-            throw new RuntimeException("Неизвестный клиент!");
-
-        try {
-            Cipher cipher = Cipher.getInstance("RSA");
-            cipher.init(Cipher.ENCRYPT_MODE, clientPublicKey);
-
-            byte[] messageToEncryptBytes = messageToEncrypt.getBytes(StandardCharsets.UTF_8);
-            byte[] encryptedMessage = cipher.doFinal(messageToEncryptBytes);
-
-            return Base64.getEncoder().encodeToString(encryptedMessage);
-        } catch (NoSuchPaddingException | IllegalBlockSizeException | NoSuchAlgorithmException | BadPaddingException |
-                 InvalidKeyException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private String decryptMessage(String messageToDecrypt) {
-        byte[] messageToDecryptBytes = Base64.getDecoder().decode(messageToDecrypt);
-
-        try {
-            Cipher cipher = Cipher.getInstance("RSA");
-            cipher.init(Cipher.DECRYPT_MODE, serverPrivateKey);
-
-            byte[] decryptedMessage = cipher.doFinal(messageToDecryptBytes);
-
-            return new String(decryptedMessage, StandardCharsets.UTF_8);
-        } catch (NoSuchPaddingException | IllegalBlockSizeException | NoSuchAlgorithmException | BadPaddingException |
-                 InvalidKeyException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private String generateSecretCode(int length) {
-        String characters = "qwertyuiopasdfghjklzxcvbnm1234567890QWERTYUIOASDFGHJKLZXCVBNM";
-        Random rnd = new Random();
-        char[] text = new char[length];
-        for (int i = 0; i < length; i++)
-        {
-            text[i] = characters.charAt(rnd.nextInt(characters.length()));
-        }
-        return new String(text);
+        return cryptographer.encryptString(messageToEncrypt, clientPublicKey);
     }
 
     /**

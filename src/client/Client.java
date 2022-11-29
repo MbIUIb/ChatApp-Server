@@ -18,6 +18,7 @@ public class Client {
     private BufferedWriter bufferedWriter;
     private ObjectOutputStream objectOutputStream;
     private ObjectInputStream objectInputStream;
+    private Cryptographer cryptographer;
     private String username;
     private String age;
     private String email;
@@ -48,7 +49,7 @@ public class Client {
         try {
             // создание публичного и приватного ключей клиента
             KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-            keyPairGenerator.initialize(2048);
+            keyPairGenerator.initialize(4096);
 
             KeyPair keyPair = keyPairGenerator.generateKeyPair();
 
@@ -59,6 +60,7 @@ public class Client {
             System.out.println("Ошибка создания ключей клиента!");
         }
 
+        cryptographer = new Cryptographer("RSA");
     }
 
     public void startClient() {
@@ -76,11 +78,11 @@ public class Client {
         }
 
         try {
-            bufferedWriter.write(encryptMessage(username));
+            bufferedWriter.write(cryptographer.encryptString(username, serverPublicKey));
             bufferedWriter.newLine();
             bufferedWriter.flush();
 
-            bufferedWriter.write(encryptMessage(email));
+            bufferedWriter.write(cryptographer.encryptString(email, serverPublicKey));
             bufferedWriter.newLine();
             bufferedWriter.flush();
         } catch (IOException e) {
@@ -101,7 +103,7 @@ public class Client {
 
                 String messageToSend = scanner.nextLine();
 
-                bufferedWriter.write(encryptMessage(messageToSend));
+                bufferedWriter.write(cryptographer.encryptString(messageToSend, serverPublicKey));
                 bufferedWriter.newLine();
                 bufferedWriter.flush();
 
@@ -126,7 +128,7 @@ public class Client {
                     try {
 
                         messageFromChat = bufferedReader.readLine();
-                        System.out.println(decryptMessage(messageFromChat));
+                        System.out.println(cryptographer.decryptString(messageFromChat, clientPrivateKey));
 
                     } catch (IOException e) {
                         closeEverything();
@@ -135,40 +137,6 @@ public class Client {
 
             }
         }).start();
-    }
-
-    private String encryptMessage(String messageToEncrypt) {
-        if (serverPublicKey == null)
-            throw new RuntimeException("Неизвестный ключ сервера!");
-
-        try {
-            Cipher cipher = Cipher.getInstance("RSA");
-            cipher.init(Cipher.ENCRYPT_MODE, serverPublicKey);
-
-            byte[] messageToEncryptBytes = messageToEncrypt.getBytes(StandardCharsets.UTF_8);
-            byte[] encryptedMessage = cipher.doFinal(messageToEncryptBytes);
-
-            return Base64.getEncoder().encodeToString(encryptedMessage);
-        } catch (NoSuchPaddingException | IllegalBlockSizeException | NoSuchAlgorithmException | BadPaddingException |
-                 InvalidKeyException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private String decryptMessage(String messageToDecrypt) {
-        byte[] messageToDecryptBytes = Base64.getDecoder().decode(messageToDecrypt);
-
-        try {
-            Cipher cipher = Cipher.getInstance("RSA");
-            cipher.init(Cipher.DECRYPT_MODE, clientPrivateKey);
-
-            byte[] decryptedMessage = cipher.doFinal(messageToDecryptBytes);
-
-            return new String(decryptedMessage, StandardCharsets.UTF_8);
-        } catch (NoSuchPaddingException | IllegalBlockSizeException | NoSuchAlgorithmException | BadPaddingException |
-                 InvalidKeyException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     public void closeEverything() {
