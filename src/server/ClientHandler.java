@@ -2,10 +2,8 @@ package server;
 
 import java.io.*;
 import java.net.Socket;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.security.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -26,12 +24,14 @@ public class ClientHandler implements Runnable {
     private ObjectInputStream objectInputStream;
     private EmailSender emailSender;
     private PGP pgp;
+    private String serverName;
     private String clientUsername;
     private String clientPassword;
     private String clientEmail;
     private String serverPublicKey;
     private String serverPrivateKey;
     String clientPublicKey;
+    static int severNum = 0;
 
     /**
      * Конструктор класса {@code server.ClientHandler}. Определяет
@@ -40,16 +40,18 @@ public class ClientHandler implements Runnable {
      */
     public ClientHandler(Socket socket) {
         this.socket = socket;
+        severNum += 1;
+        serverName = "sever_" + severNum;
 
-        pgp = new PGP("server");
-        serverPublicKey = getStringFromFile(pgp.getPublicKeyFilepath("server"));
-        serverPrivateKey = getStringFromFile(pgp.getPrivateKeyFilepath("server"));
+        pgp = new PGP(serverName);
+        serverPublicKey = getStringFromFile(pgp.getPublicKeyFilepath(serverName));
+        serverPrivateKey = getStringFromFile(pgp.getPrivateKeyFilepath(serverName));
 
         try {
             objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
             objectInputStream = new ObjectInputStream(socket.getInputStream());
         } catch (IOException e) {
-            throw new RuntimeException(e); // обработать исключение
+            System.err.println("Ошибка создания I/O потоков: " + e);
         }
 
     }
@@ -76,11 +78,11 @@ public class ClientHandler implements Runnable {
         try {
             // ожидание получения имени клиета
             String username = (String) objectInputStream.readObject();
-            this.clientUsername = pgp.decryptString(username, "server");
+            this.clientUsername = pgp.decryptString(username, serverName);
             System.out.println(clientUsername);
 
             String email = (String) objectInputStream.readObject();
-            this.clientEmail = pgp.decryptString(email, "server");
+            this.clientEmail = pgp.decryptString(email, serverName);
             emailSender = new EmailSender(clientEmail);
 
             writeStringToFile(clientPublicKey, clientUsername);
@@ -98,7 +100,7 @@ public class ClientHandler implements Runnable {
         while (socket.isConnected()) {
              try {
                  messageFromClient = (String) objectInputStream.readObject();
-                 broadcastMessage(pgp.decryptString(messageFromClient, "server"), false);
+                 broadcastMessage(pgp.decryptString(messageFromClient, serverName), false);
              } catch (IOException | ClassNotFoundException e) {
                  closeEverything();
                  break;

@@ -2,11 +2,8 @@ package client;
 
 import java.io.*;
 import java.net.Socket;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.security.*;
-import java.util.Base64;
 import java.util.Scanner;
 
 public class Client {
@@ -15,6 +12,7 @@ public class Client {
     private ObjectOutputStream objectOutputStream;
     private ObjectInputStream objectInputStream;
     private PGP pgp;
+    private String serverName;
     private String username;
     private String age;
     private String email;
@@ -30,6 +28,7 @@ public class Client {
         pgp = new PGP(username);
         clientPublicKey = getStringFromFile(pgp.getPublicKeyFilepath(username));
         clientPrivateKey = getStringFromFile(pgp.getPrivateKeyFilepath(username));
+        serverName = pgp.generateSecretCode(15);
 
         try {
             objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
@@ -49,17 +48,17 @@ public class Client {
 
             // получение публичного ключа сервера
             serverPublicKey = (String) objectInputStream.readObject();
-            writeStringToFile(serverPublicKey, "server");
+            writeStringToFile(serverPublicKey, serverName);
 
         } catch (Exception e) {
             System.err.println("Ошибка обмена ключами: "+ e);
         }
 
         try {
-            objectOutputStream.writeObject(pgp.encryptString(username, "server"));
+            objectOutputStream.writeObject(pgp.encryptString(username, serverName));
             objectOutputStream.flush();
 
-            objectOutputStream.writeObject(pgp.encryptString(email, "server"));
+            objectOutputStream.writeObject(pgp.encryptString(email, serverName));
             objectOutputStream.flush();
         } catch (IOException e) {
             System.err.println("Ошибка отправки имени!");
@@ -79,7 +78,7 @@ public class Client {
 
                 String messageToSend = scanner.nextLine();
 
-                objectOutputStream.writeObject(pgp.encryptString(messageToSend, "server"));
+                objectOutputStream.writeObject(pgp.encryptString(messageToSend, serverName));
                 objectOutputStream.flush();
 
             }

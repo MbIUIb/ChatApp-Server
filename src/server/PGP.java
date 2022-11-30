@@ -8,6 +8,7 @@ import com.google.api.client.util.IOUtils;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Random;
 
 public class PGP {
     PGPLib pgpLib;
@@ -67,6 +68,17 @@ public class PGP {
 
     public String getPrivateKeyFilepath(String username) {
         return defaultKeysFilepath + "PrivateKey_" + username + ".pgp";
+    }
+
+    public String generateSecretCode(int length) {
+        String characters = "qwertyuiopasdfghjklzxcvbnm1234567890QWERTYUIOASDFGHJKLZXCVBNM";
+        Random rnd = new Random();
+        char[] text = new char[length];
+        for (int i = 0; i < length; i++)
+        {
+            text[i] = characters.charAt(rnd.nextInt(characters.length()));
+        }
+        return new String(text);
     }
 
 }
