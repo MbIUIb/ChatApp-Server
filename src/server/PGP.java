@@ -1,15 +1,17 @@
 package server;
 
 import com.didisoft.pgp.*;
-import com.didisoft.pgp.bc.IOUtil;
 import com.didisoft.pgp.exceptions.NoPrivateKeyFoundException;
-import com.google.api.client.util.IOUtils;
 
 import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.Random;
 
+/**
+ * Класс позволяющий работать с криптографией.
+ *
+ * @author Kirill Chezlov
+ * @version 1.0
+ */
 public class PGP {
     PGPLib pgpLib;
     String username;
@@ -24,6 +26,11 @@ public class PGP {
         this.generateKeyPair(username);
     }
 
+    /**
+     * позволяет генерировать пару ключей для асимметричной RSA криптографии
+     * и сохранить их в файлы
+     * @param username имя пользователя-владельца ключей
+     */
     public void generateKeyPair(String username) {
         try {
             PGPKeyPair keyPair = PGPKeyPair.generateRsaKeyPair(keySizeInBytes, username, username);
@@ -33,6 +40,10 @@ public class PGP {
         }
     }
 
+    /**
+     * сохраняет пару ключей в файл
+     * @param keyPair пара RSA ключей
+     */
     private void exportKeysFromKeyPair(PGPKeyPair keyPair) {
         try {
             keyPair.exportPublicKey(defaultKeysFilepath + "PublicKey_" + keyPair.getUserID() + ".pgp", true);
@@ -42,6 +53,12 @@ public class PGP {
         }
     }
 
+    /**
+     * возвращает зашифрованную строку
+     * @param stringToEncrypt сообщение для шифорования
+     * @param username имя пользователя, шифрующего сообщение
+     * @return String в случае успешного шифрования, иначе null
+     */
     public String encryptString(String stringToEncrypt, String username) {
         try {
             FileInputStream publicEncryptionKeyFile = new FileInputStream(this.getPublicKeyFilepath(username));
@@ -52,6 +69,12 @@ public class PGP {
         return null;
     }
 
+    /**
+     * возвращает расшифровыванную строку
+     * @param stringToEncrypt сообщение для расшифровки
+     * @param username имя пользователя, расшифрующего сообщение
+     * @return String в случае успешной расшифровки, иначе null
+     */
     public String decryptString(String stringToEncrypt, String username) {
         try {
             FileInputStream publicDecryptionKeyFile = new FileInputStream(this.getPrivateKeyFilepath(username));
@@ -62,14 +85,29 @@ public class PGP {
         return null;
     }
 
+    /**
+     * создает и возвращает путь к файлу публичного ключа
+     * @param username имя пользователя-владельца ключей
+     * @return String
+     */
     public String getPublicKeyFilepath(String username) {
         return defaultKeysFilepath + "PublicKey_" + username + ".pgp";
     }
 
+    /**
+     * создает и возвращает путь к файлу приватного ключа
+     * @param username имя пользователя-владельца ключей
+     * @return String
+     */
     public String getPrivateKeyFilepath(String username) {
         return defaultKeysFilepath + "PrivateKey_" + username + ".pgp";
     }
 
+    /**
+     * генерирует случайным образом и возвращает секретный ключ
+     * @param length длина серетного кода
+     * @return String
+     */
     public String generateSecretCode(int length) {
         String characters = "qwertyuiopasdfghjklzxcvbnm1234567890QWERTYUIOASDFGHJKLZXCVBNM";
         Random rnd = new Random();
