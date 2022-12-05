@@ -14,7 +14,7 @@ import java.util.*;
  * отдельном потоке.
  *
  * @author Kirill Chezlov
- * @version 0.1
+ * @version 1.1
  */
 public class ClientHandler implements Runnable {
 
@@ -34,8 +34,8 @@ public class ClientHandler implements Runnable {
     static int severNum = 0;
 
     /**
-     * Конструктор класса {@code server.ClientHandler}. Определяет
-     * потоки ввода и вывода для дальнейшей работы.
+     * Конструктор класса {@code ClientHandler}. Определяет
+     * потоки ввода и вывода и pgp криптографер для дальнейшей работы.
      * @param socket сокет клиента
      */
     public ClientHandler(Socket socket) {
@@ -81,10 +81,12 @@ public class ClientHandler implements Runnable {
             this.clientUsername = pgp.decryptString(username, serverName);
             System.out.println(clientUsername);
 
+            // ожидание получения email клиента
             String email = (String) objectInputStream.readObject();
             this.clientEmail = pgp.decryptString(email, serverName);
             emailSender = new EmailSender(clientEmail);
 
+            // сохранение ключа в файл
             writeStringToFile(clientPublicKey, clientUsername);
 
         } catch (IOException | ClassNotFoundException e) {
@@ -92,21 +94,30 @@ public class ClientHandler implements Runnable {
             System.out.println("Ошибка получения имени клиента!");
         }
 
+        // добавление подключившегося клиента в общий список
         clientHandlers.add(this);
         broadcastMessage(clientUsername + " has connected.", true);
 
-        // получение сообщений клиента
-        String messageFromClient;
-        while (socket.isConnected()) {
-             try {
-                 messageFromClient = (String) objectInputStream.readObject();
-                 broadcastMessage(pgp.decryptString(messageFromClient, serverName), false);
-             } catch (IOException | ClassNotFoundException e) {
-                 closeEverything();
-                 break;
-             }
-        }
+        listenForMessage();
 
+    }
+
+    /**
+     * Постоянно прослушивает входной поток и ожидает получения сообщений.
+     * При поучении собщения рассылает его всем клиентам
+     */
+    public void listenForMessage() {
+        String messageFromClient;
+
+        while (socket.isConnected()) {
+            try {
+                messageFromClient = (String) objectInputStream.readObject();
+                broadcastMessage(pgp.decryptString(messageFromClient, serverName), false);
+            } catch (IOException | ClassNotFoundException e) {
+                removeClientHandler();
+                break;
+            }
+        }
     }
 
     /**
@@ -116,19 +127,19 @@ public class ClientHandler implements Runnable {
      *                  имени сервера
      */
     public void broadcastMessage(String messageToSend, boolean isService) {
+        String senderUsername;
+        SimpleDateFormat formatter = new SimpleDateFormat("dd.MM.yyyy HH:mm");
+        String date = formatter.format(new Date());
 
         for (ClientHandler clientHandler : clientHandlers) {
-            String senderUsername;
-            SimpleDateFormat formatter = new SimpleDateFormat("dd.MM.yyyy HH:mm");
-
             try {
                 if (!clientHandler.clientUsername.equals(clientUsername)) {
 
                     if (!isService) {
-                        senderUsername = clientUsername + ": ";
-                    } else senderUsername = "SERVER: ";
+                        senderUsername = clientUsername;
+                    } else senderUsername = "SERVER";
 
-                    String msg = "[" + formatter.format(new Date()) + "]" + senderUsername + messageToSend;
+                    String msg = "[" + date + "] " + senderUsername + ": " + messageToSend;
 
                     clientHandler.objectOutputStream.writeObject(pgp.encryptString(msg, clientHandler.clientUsername));
                     clientHandler.objectOutputStream.flush();
@@ -142,6 +153,11 @@ public class ClientHandler implements Runnable {
 
     }
 
+    /**
+     * позволяет получить весь текст из файла с заданным путем
+     * @param path путь к файлу
+     * @return String, содержащий весь текст из файла
+     */
     private String getStringFromFile(String path) {
         try {
             return new String(Files.readAllBytes(Paths.get(path)));
@@ -151,6 +167,12 @@ public class ClientHandler implements Runnable {
         return null;
     }
 
+    /**
+     * позволяет записать текст в файл, содержащий в названии
+     * имя пользователя-владельца
+     * @param str текст для записи в файл
+     * @param username имя пользователя-владельца файла
+     */
     private void writeStringToFile(String str, String username) {
         try {
             String path = "src/server/res/PublicKey_" + username + ".pgp";
