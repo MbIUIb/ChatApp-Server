@@ -5,6 +5,12 @@ import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import java.util.Properties;
 
+/**
+ * Класс, позволяющий работать с email
+ *
+ * @author Kirill Chezlov
+ * @version 1.0
+ */
 public class EmailSender {
     private final String serverEmailAddress = "";
     private final String password = "";
@@ -12,6 +18,11 @@ public class EmailSender {
     private Properties prop;
     private Session session;
 
+    /**
+     * конструктор класса {@code EmailSender}.
+     * создает сессию и подкличается к серверу почтового хоста
+     * @param emailAddress email получателя
+     */
     public EmailSender(String emailAddress) {
         this.emailAddress = emailAddress;
         prop = new Properties();
@@ -28,6 +39,11 @@ public class EmailSender {
                 });
     }
 
+    /**
+     * отправляет письмо пользователю
+     * @param subj тема письма
+     * @param text сообщение
+     */
     public void sendMessage(String subj, String text) {
         try {
 
