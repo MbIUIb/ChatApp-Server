@@ -13,6 +13,7 @@ import java.net.Socket;
 public class Server {
 
     private ServerSocket serverSocket;
+    Database db;
 
     /**
      * Конструктор класса server.Server.
@@ -20,6 +21,7 @@ public class Server {
      */
     public Server(ServerSocket serverSocket) {
         this.serverSocket = serverSocket;
+        db = new Database();
     }
 
     /**
@@ -39,7 +41,7 @@ public class Server {
                 System.out.println("Клиент " + socket.getInetAddress() + ":" +
                         socket.getPort() + " подключился к серверу");
 
-                Thread newClientThread = new Thread(new ClientHandler(socket));
+                Thread newClientThread = new Thread(new ClientHandler(socket, db));
                 newClientThread.start();
 
             }
