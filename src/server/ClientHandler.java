@@ -32,14 +32,17 @@ public class ClientHandler implements Runnable {
     private String serverPrivateKey;
     String clientPublicKey;
     static int severNum = 0;
+    private Database db;
 
     /**
      * Конструктор класса {@code ClientHandler}. Определяет
      * потоки ввода и вывода и pgp криптографер для дальнейшей работы.
      * @param socket сокет клиента
      */
-    public ClientHandler(Socket socket) {
+    public ClientHandler(Socket socket, Database db) {
         this.socket = socket;
+        this.db = db;
+
         severNum += 1;
         serverName = "sever_" + severNum;
 
@@ -81,11 +84,6 @@ public class ClientHandler implements Runnable {
             this.clientUsername = pgp.decryptString(username, serverName);
             System.out.println(clientUsername);
 
-            // ожидание получения email клиента
-            String email = (String) objectInputStream.readObject();
-            this.clientEmail = pgp.decryptString(email, serverName);
-            emailSender = new EmailSender(clientEmail);
-
             // сохранение ключа в файл
             writeStringToFile(clientPublicKey, clientUsername);
 
@@ -96,7 +94,6 @@ public class ClientHandler implements Runnable {
 
         // добавление подключившегося клиента в общий список
         clientHandlers.add(this);
-        broadcastMessage(clientUsername + " has connected.", true);
 
         listenForMessage();
 
@@ -111,12 +108,41 @@ public class ClientHandler implements Runnable {
 
         while (socket.isConnected()) {
             try {
-                messageFromClient = (String) objectInputStream.readObject();
-                broadcastMessage(pgp.decryptString(messageFromClient, serverName), false);
+                messageFromClient = pgp.decryptString((String) objectInputStream.readObject(), serverName);
+
+                if (messageFromClient.substring(0, 7).equals("sign_in")) {
+                    String[] str = messageFromClient.split("\\|");
+                    String username = str[1];
+                    String password = str[2];
+
+                    if (db.authenticationUser(username, password)) {
+                        sendMessage("successful_sign_in");
+                    } else {
+                        sendMessage("failed_sign_in");
+                        removeClientHandler();
+                        return;
+                    }
+                    sendChatHistory();
+                    if (!db.userInChat(clientUsername)) {
+                        broadcastMessage(clientUsername + " has connected!", true);
+                    }
+                } else {
+                    broadcastMessage(messageFromClient, false);
+                }
+
             } catch (IOException | ClassNotFoundException e) {
                 removeClientHandler();
                 break;
             }
+        }
+    }
+
+    public void sendMessage(String message) {
+        try {
+            objectOutputStream.writeObject(message);
+            objectOutputStream.flush();
+        } catch (IOException e) {
+            System.err.println("Ошибка отправки сообщения: " + e);
         }
     }
 
@@ -128,29 +154,46 @@ public class ClientHandler implements Runnable {
      */
     public void broadcastMessage(String messageToSend, boolean isService) {
         String senderUsername;
-        SimpleDateFormat formatter = new SimpleDateFormat("dd.MM.yyyy HH:mm");
+        SimpleDateFormat formatter = new SimpleDateFormat("dd.MM.yy H:mm");
         String date = formatter.format(new Date());
+
+        if (!isService) {
+            senderUsername = clientUsername;
+        } else senderUsername = "SERVER";
+
+        String msg = date + "|" + senderUsername + "|" + messageToSend;
+
+        db.addNewMessage(date, senderUsername, messageToSend);
 
         for (ClientHandler clientHandler : clientHandlers) {
             try {
                 if (!clientHandler.clientUsername.equals(clientUsername)) {
-
-                    if (!isService) {
-                        senderUsername = clientUsername;
-                    } else senderUsername = "SERVER";
-
-                    String msg = "[" + date + "] " + senderUsername + ": " + messageToSend;
 
                     clientHandler.objectOutputStream.writeObject(pgp.encryptString(msg, clientHandler.clientUsername));
                     clientHandler.objectOutputStream.flush();
 
                 }
             } catch (IOException e) {
-                closeEverything();
+                removeClientHandler();
             }
 
         }
 
+    }
+
+    private void sendChatHistory() {
+        Map<Integer, String[]> history = db.getAllMessage();
+
+        for (int i = 1; i < history.size()+1; i++) {
+            String msg = history.get(i)[0] + "|" + history.get(i)[1] + "|" + history.get(i)[2];
+
+            try {
+                objectOutputStream.writeObject(pgp.encryptString(msg, clientUsername));
+                objectOutputStream.flush();
+            } catch (IOException e) {
+                removeClientHandler();
+            }
+        }
     }
 
     /**
@@ -191,7 +234,6 @@ public class ClientHandler implements Runnable {
      */
     public void removeClientHandler() {
         clientHandlers.remove(this);
-        broadcastMessage(clientUsername + " has disconnected!", true);
     }
 
     /**
