@@ -212,6 +212,19 @@ public class Database {
         return false;
     }
 
+    public boolean userNotRegistered(String username) {
+        try {
+            String query = "SELECT EXISTS(SELECT username FROM users WHERE username=?) AS count";
+            PreparedStatement statement = connection.prepareStatement(query);
+            statement.setString(1, username);
+
+            ResultSet resultSet = statement.executeQuery();
+
+            return resultSet.getInt("count") == 0;
+        } catch (SQLException ignored) {}
+        return false;
+    }
+
     /**
      * закрывает соединение
      */
@@ -227,5 +240,6 @@ public class Database {
 
     public static void main(String[] args) {
         Database database = new Database();
+        System.out.println(database.userNotRegistered("Alex"));
     }
 }

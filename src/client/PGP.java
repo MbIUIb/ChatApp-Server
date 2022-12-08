@@ -2,12 +2,13 @@ package client;
 
 import com.didisoft.pgp.*;
 import com.didisoft.pgp.exceptions.NoPrivateKeyFoundException;
+import interfaces.PGPInterface;
 
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Random;
 
-public class PGP {
+public class PGP implements PGPInterface {
     PGPLib pgpLib;
     String username;
     String defaultKeysFilepath = "src/client/res/";

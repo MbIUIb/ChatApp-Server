@@ -2,6 +2,7 @@ package server;
 
 import com.didisoft.pgp.*;
 import com.didisoft.pgp.exceptions.NoPrivateKeyFoundException;
+import interfaces.PGPInterface;
 
 import java.io.*;
 import java.util.Random;
@@ -12,7 +13,7 @@ import java.util.Random;
  * @author Kirill Chezlov
  * @version 1.0
  */
-public class PGP {
+public class PGP implements PGPInterface {
     PGPLib pgpLib;
     String username;
     String defaultKeysFilepath = "src/server/res/";

@@ -110,7 +110,7 @@ public class ClientHandler implements Runnable {
             try {
                 messageFromClient = pgp.decryptString((String) objectInputStream.readObject(), serverName);
 
-                if (messageFromClient.substring(0, 7).equals("sign_in")) {
+                if (messageFromClient.length() > 7 && messageFromClient.substring(0, 7).equals("sign_in")) {
                     String[] str = messageFromClient.split("\\|");
                     String username = str[1];
                     String password = str[2];
@@ -126,6 +126,79 @@ public class ClientHandler implements Runnable {
                     if (!db.userInChat(clientUsername)) {
                         broadcastMessage(clientUsername + " has connected!", true);
                     }
+                } else if (messageFromClient.length() > 7 && messageFromClient.substring(0, 7).equals("sign_up")) {
+                    String[] str = messageFromClient.split("\\|");
+                    String username = str[1];
+                    String password = str[2];
+                    String email = str[3];
+
+                    if (db.userNotRegistered(username)) {
+                        sendMessage("successful_pre_sign_up");
+
+                        String secretCode = pgp.generateSecretCode(6);
+
+                        emailSender = new EmailSender(email);
+                        emailSender.sendMessage("JavaChat registration secret code", "Secret code:" + secretCode);
+
+                        while (socket.isConnected()) {
+
+                            String userSecretCode = waitMessage();
+
+                            if (secretCode.equals(userSecretCode)) {
+                                db.createUser(username, password, email);
+                                sendMessage("successful_sign_up");
+                                removeClientHandler();
+                                return;
+                            } else {
+                                sendMessage("failed_sign_up");
+                            }
+
+                        }
+                    } else {
+                        sendMessage("failed_pre_sign_up");
+                        removeClientHandler();
+                        return;
+                    }
+                    
+                } else if (messageFromClient.length() > 17 &&
+                        messageFromClient.substring(0, 17).equals("password_recovery")) {
+
+                    String[] str = messageFromClient.split("\\|");
+                    String username = str[1];
+
+                    if (!db.userNotRegistered(username)) {
+                        sendMessage("begin_password_recovery");
+
+                        String secretCode = pgp.generateSecretCode(6);
+
+                        emailSender = new EmailSender(db.getEmail(username));
+                        emailSender.sendMessage("JavaChat confirm new password secret code",
+                                "Secret code:" + secretCode);
+
+                        while (socket.isConnected()) {
+
+                            String[] str1 = waitMessage().split("\\|");
+                            username = str1[1];
+                            String newPassword = str1[2];
+                            String userSecretCode = str1[3];
+
+                            if (secretCode.equals(userSecretCode)) {
+                                db.setPassword(username, newPassword);
+                                sendMessage("successful_password_recovery");
+                                removeClientHandler();
+                                return;
+                            } else {
+                                sendMessage("invalid_password_recovery");
+                            }
+
+                        }
+
+                    } else {
+                        sendMessage("failed_begin_password_recovery");
+                        removeClientHandler();
+                        return;
+                    }
+
                 } else {
                     broadcastMessage(messageFromClient, false);
                 }
@@ -139,11 +212,22 @@ public class ClientHandler implements Runnable {
 
     public void sendMessage(String message) {
         try {
-            objectOutputStream.writeObject(message);
+            objectOutputStream.writeObject(pgp.encryptString(message, clientUsername));
             objectOutputStream.flush();
         } catch (IOException e) {
             System.err.println("Ошибка отправки сообщения: " + e);
+            removeClientHandler();
         }
+    }
+
+    public String waitMessage() {
+        try {
+            return pgp.decryptString((String) objectInputStream.readObject(), serverName);
+        } catch (IOException | ClassNotFoundException e) {
+            System.err.println("Ошибка получения сообщения: " + e);
+            removeClientHandler();
+        }
+        return "";
     }
 
     /**

@@ -12,8 +12,8 @@ import java.util.Properties;
  * @version 1.0
  */
 public class EmailSender {
-    private final String serverEmailAddress = "";
-    private final String password = "";
+    private final String serverEmailAddress = "mbiuib7@gmail.com";
+    private final String password = "qfeapiphmxyheljm";
     private final String emailAddress;
     private Properties prop;
     private Session session;
