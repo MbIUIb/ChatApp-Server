@@ -19,20 +19,18 @@ import java.util.*;
 public class ClientHandler implements Runnable {
 
     public static ArrayList<ClientHandler> clientHandlers = new ArrayList<>();
-    private Socket socket;
+    private final Socket socket;
     private ObjectOutputStream objectOutputStream;
     private ObjectInputStream objectInputStream;
     private EmailSender emailSender;
-    private PGP pgp;
-    private String serverName;
+    private final PGP pgp;
+    private final String serverName;
     private String clientUsername;
-    private String clientPassword;
-    private String clientEmail;
-    private String serverPublicKey;
+    private final String serverPublicKey;
     private String serverPrivateKey;
     String clientPublicKey;
     static int severNum = 0;
-    private Database db;
+    private final Database db;
 
     /**
      * Конструктор класса {@code ClientHandler}. Определяет
@@ -112,7 +110,7 @@ public class ClientHandler implements Runnable {
                     String username = str[1];
                     String password = str[2];
 
-                    if (db.authenticationUser(username, password) && clientInClientHandlers() == false) {
+                    if (db.authenticationUser(username, password) && !clientInClientHandlers()) {
                         sendMessage("successful_sign_in");
                         // добавление подключившегося клиента в общий список
                         clientHandlers.add(this);
@@ -316,6 +314,7 @@ public class ClientHandler implements Runnable {
         for (ClientHandler clientHandler : clientHandlers) {
             if (clientHandler.clientUsername.equals(clientUsername)) {
                 in = true;
+                break;
             }
         }
         return in;
