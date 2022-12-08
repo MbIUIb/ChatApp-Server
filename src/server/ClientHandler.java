@@ -92,9 +92,6 @@ public class ClientHandler implements Runnable {
             System.out.println("Ошибка получения имени клиента!");
         }
 
-        // добавление подключившегося клиента в общий список
-        clientHandlers.add(this);
-
         listenForMessage();
 
     }
@@ -115,11 +112,13 @@ public class ClientHandler implements Runnable {
                     String username = str[1];
                     String password = str[2];
 
-                    if (db.authenticationUser(username, password)) {
+                    if (db.authenticationUser(username, password) && clientInClientHandlers() == false) {
                         sendMessage("successful_sign_in");
+                        // добавление подключившегося клиента в общий список
+                        clientHandlers.add(this);
                     } else {
                         sendMessage("failed_sign_in");
-                        removeClientHandler();
+                        closeEverything();
                         return;
                     }
                     sendChatHistory();
@@ -147,7 +146,7 @@ public class ClientHandler implements Runnable {
                             if (secretCode.equals(userSecretCode)) {
                                 db.createUser(username, password, email);
                                 sendMessage("successful_sign_up");
-                                removeClientHandler();
+                                closeEverything();
                                 return;
                             } else {
                                 sendMessage("failed_sign_up");
@@ -156,7 +155,7 @@ public class ClientHandler implements Runnable {
                         }
                     } else {
                         sendMessage("failed_pre_sign_up");
-                        removeClientHandler();
+                        closeEverything();
                         return;
                     }
                     
@@ -185,7 +184,7 @@ public class ClientHandler implements Runnable {
                             if (secretCode.equals(userSecretCode)) {
                                 db.setPassword(username, newPassword);
                                 sendMessage("successful_password_recovery");
-                                removeClientHandler();
+                                closeEverything();
                                 return;
                             } else {
                                 sendMessage("invalid_password_recovery");
@@ -195,7 +194,7 @@ public class ClientHandler implements Runnable {
 
                     } else {
                         sendMessage("failed_begin_password_recovery");
-                        removeClientHandler();
+                        closeEverything();
                         return;
                     }
 
@@ -204,7 +203,7 @@ public class ClientHandler implements Runnable {
                 }
 
             } catch (IOException | ClassNotFoundException e) {
-                removeClientHandler();
+                closeEverything();
                 break;
             }
         }
@@ -310,6 +309,16 @@ public class ClientHandler implements Runnable {
         } catch (IOException e) {
             System.err.println("Ошибка записи ключа в файл: " + e);
         }
+    }
+
+    public boolean clientInClientHandlers() {
+        boolean in = false;
+        for (ClientHandler clientHandler : clientHandlers) {
+            if (clientHandler.clientUsername.equals(clientUsername)) {
+                in = true;
+            }
+        }
+        return in;
     }
 
     /**
