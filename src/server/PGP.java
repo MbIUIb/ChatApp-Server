@@ -15,12 +15,8 @@ import java.util.Random;
  */
 public class PGP implements PGPInterface {
     PGPLib pgpLib;
-    String username;
-    String defaultKeysFilepath = "src/server/res/";
-    private int keySizeInBytes = 2048;
-    private long expiresAfterDay = 5;
-    private String hashingAlgorithm = HashAlgorithm.MD5;
-    private String compression = CompressionAlgorithm.UNCOMPRESSED;
+    public String defaultKeysFilepath = "src/server/res/keys/";
+    private static final int KEY_SIZE_IN_BYTES = 2048;
 
     public PGP(String username) {
         this.pgpLib = new PGPLib();
@@ -34,7 +30,7 @@ public class PGP implements PGPInterface {
      */
     public void generateKeyPair(String username) {
         try {
-            PGPKeyPair keyPair = PGPKeyPair.generateRsaKeyPair(keySizeInBytes, username, username);
+            PGPKeyPair keyPair = PGPKeyPair.generateRsaKeyPair(KEY_SIZE_IN_BYTES, username, username);
             exportKeysFromKeyPair(keyPair);
         } catch (PGPException e) {
             System.err.println("Ошибка генерации ключей: " + e);

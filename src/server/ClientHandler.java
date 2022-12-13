@@ -105,96 +105,17 @@ public class ClientHandler implements Runnable {
             try {
                 messageFromClient = pgp.decryptString((String) objectInputStream.readObject(), serverName);
 
-                if (messageFromClient.length() > 7 && messageFromClient.substring(0, 7).equals("sign_in")) {
-                    String[] str = messageFromClient.split("\\|");
-                    String username = str[1];
-                    String password = str[2];
+                if (messageFromClient.length() > 7 &&
+                        messageFromClient.substring(0, 7).equals("sign_in")) {
+                    signInProcess(messageFromClient);
 
-                    if (db.authenticationUser(username, password) && !clientInClientHandlers()) {
-                        sendMessage("successful_sign_in");
-                        // добавление подключившегося клиента в общий список
-                        clientHandlers.add(this);
-                    } else {
-                        sendMessage("failed_sign_in");
-                        closeEverything();
-                        return;
-                    }
-                    sendChatHistory();
-                    if (!db.userInChat(clientUsername)) {
-                        broadcastMessage(clientUsername + " has connected!", true);
-                    }
-                } else if (messageFromClient.length() > 7 && messageFromClient.substring(0, 7).equals("sign_up")) {
-                    String[] str = messageFromClient.split("\\|");
-                    String username = str[1];
-                    String password = str[2];
-                    String email = str[3];
+                } else if (messageFromClient.length() > 7 &&
+                        messageFromClient.substring(0, 7).equals("sign_up")) {
+                    signUpProcess(messageFromClient);
 
-                    if (db.userNotRegistered(username)) {
-                        sendMessage("successful_pre_sign_up");
-
-                        String secretCode = pgp.generateSecretCode(6);
-
-                        emailSender = new EmailSender(email);
-                        emailSender.sendMessage("JavaChat registration secret code", "Secret code:" + secretCode);
-
-                        while (socket.isConnected()) {
-
-                            String userSecretCode = waitMessage();
-
-                            if (secretCode.equals(userSecretCode)) {
-                                db.createUser(username, password, email);
-                                sendMessage("successful_sign_up");
-                                closeEverything();
-                                return;
-                            } else {
-                                sendMessage("failed_sign_up");
-                            }
-
-                        }
-                    } else {
-                        sendMessage("failed_pre_sign_up");
-                        closeEverything();
-                        return;
-                    }
-                    
                 } else if (messageFromClient.length() > 17 &&
                         messageFromClient.substring(0, 17).equals("password_recovery")) {
-
-                    String[] str = messageFromClient.split("\\|");
-                    String username = str[1];
-
-                    if (!db.userNotRegistered(username)) {
-                        sendMessage("begin_password_recovery");
-
-                        String secretCode = pgp.generateSecretCode(6);
-
-                        emailSender = new EmailSender(db.getEmail(username));
-                        emailSender.sendMessage("JavaChat confirm new password secret code",
-                                "Secret code:" + secretCode);
-
-                        while (socket.isConnected()) {
-
-                            String[] str1 = waitMessage().split("\\|");
-                            username = str1[1];
-                            String newPassword = str1[2];
-                            String userSecretCode = str1[3];
-
-                            if (secretCode.equals(userSecretCode)) {
-                                db.setPassword(username, newPassword);
-                                sendMessage("successful_password_recovery");
-                                closeEverything();
-                                return;
-                            } else {
-                                sendMessage("invalid_password_recovery");
-                            }
-
-                        }
-
-                    } else {
-                        sendMessage("failed_begin_password_recovery");
-                        closeEverything();
-                        return;
-                    }
+                    passwordRecovery(messageFromClient);
 
                 } else {
                     broadcastMessage(messageFromClient, false);
@@ -207,6 +128,116 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    /**
+     * Обрабатывает процесс входа клиента
+     * @param messageFromClient служебная строка с данными от клиента
+     */
+    private void signInProcess(String messageFromClient) {
+        String[] str = messageFromClient.split("\\|");
+        String username = str[1];
+        String password = str[2];
+
+        if (db.authenticationUser(username, password) && !clientInClientHandlers()) {
+            sendMessage("successful_sign_in");
+            // добавление подключившегося клиента в общий список
+            clientHandlers.add(this);
+        } else {
+            sendMessage("failed_sign_in");
+            closeEverything();
+            return;
+        }
+        sendChatHistory();
+        if (!db.userInChat(clientUsername)) {
+            broadcastMessage(clientUsername + " has connected!", true);
+        }
+    }
+
+    /**
+     * Обрабатывает процесс регистрации клиента
+     * @param messageFromClient служебная строка с данными от клиента
+     */
+    private void signUpProcess(String messageFromClient) {
+        String[] str = messageFromClient.split("\\|");
+        String username = str[1];
+        String password = str[2];
+        String email = str[3];
+
+        if (db.userNotRegistered(username)) {
+            sendMessage("successful_pre_sign_up");
+
+            String secretCode = pgp.generateSecretCode(6);
+
+            emailSender = new EmailSender(email);
+            emailSender.sendMessage("JavaChat registration secret code", "Secret code:" + secretCode);
+
+            while (socket.isConnected()) {
+
+                String userSecretCode = waitMessage();
+
+                if (secretCode.equals(userSecretCode)) {
+                    db.createUser(username, password, email);
+                    sendMessage("successful_sign_up");
+                    closeEverything();
+                    return;
+                } else {
+                    sendMessage("failed_sign_up");
+                }
+
+            }
+        } else {
+            sendMessage("failed_pre_sign_up");
+            closeEverything();
+            return;
+        }
+
+    }
+
+    /**
+     * Обрабатывает процесс сброса пароля
+     * @param messageFromClient служебная строка с данными от кклиента
+     */
+    private void passwordRecovery(String messageFromClient) {
+        String[] str = messageFromClient.split("\\|");
+        String username = str[1];
+
+        if (!db.userNotRegistered(username)) {
+            sendMessage("begin_password_recovery");
+
+            String secretCode = pgp.generateSecretCode(6);
+
+            emailSender = new EmailSender(db.getEmail(username));
+            emailSender.sendMessage("JavaChat confirm new password secret code",
+                    "Secret code:" + secretCode);
+
+            while (socket.isConnected()) {
+
+                String[] str1 = waitMessage().split("\\|");
+                username = str1[1];
+                String newPassword = str1[2];
+                String userSecretCode = str1[3];
+
+                if (secretCode.equals(userSecretCode)) {
+                    db.setPassword(username, newPassword);
+                    sendMessage("successful_password_recovery");
+                    closeEverything();
+                    return;
+                } else {
+                    sendMessage("invalid_password_recovery");
+                }
+
+            }
+
+        } else {
+            sendMessage("failed_begin_password_recovery");
+            closeEverything();
+            return;
+        }
+    }
+
+    /**
+     * Отправляет сообщение клиенту
+     * @param message отправляемое сообщение
+     */
     public void sendMessage(String message) {
         try {
             objectOutputStream.writeObject(pgp.encryptString(message, clientUsername));
@@ -217,6 +248,10 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    /**
+     * Ожидает получение сообщения от клиента и возвращает его
+     * @return возвращает присланное сообщение, либо пустую строку в случае неудачного получения
+     */
     public String waitMessage() {
         try {
             return pgp.decryptString((String) objectInputStream.readObject(), serverName);
@@ -262,6 +297,9 @@ public class ClientHandler implements Runnable {
 
     }
 
+    /**
+     * Отправляет историю переписки, записанную в БД
+     */
     private void sendChatHistory() {
         Map<Integer, String[]> history = db.getAllMessage();
 
@@ -299,7 +337,7 @@ public class ClientHandler implements Runnable {
      */
     private void writeStringToFile(String str, String username) {
         try {
-            String path = "src/server/res/PublicKey_" + username + ".pgp";
+            String path = pgp.defaultKeysFilepath + "PublicKey_" + username + ".pgp";
             BufferedWriter writer = new BufferedWriter(new FileWriter(path));
             writer.write(str);
             writer.flush();
