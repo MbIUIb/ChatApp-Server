@@ -111,11 +111,11 @@ public class ClientHandler implements Runnable {
 
                 } else if (messageFromClient.length() > 7 &&
                         messageFromClient.startsWith("sign_up")) {
-                    signUpProcess(messageFromClient);
+                    runningFlag = signUpProcess(messageFromClient);
 
                 } else if (messageFromClient.length() > 17 &&
                         messageFromClient.startsWith("password_recovery")) {
-                    passwordRecovery(messageFromClient);
+                    runningFlag = passwordRecovery(messageFromClient);
 
                 } else {
                     broadcastMessage(messageFromClient, false);
