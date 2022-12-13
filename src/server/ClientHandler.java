@@ -27,7 +27,6 @@ public class ClientHandler implements Runnable {
     private final String serverName;
     private String clientUsername;
     private final String serverPublicKey;
-    private String serverPrivateKey;
     String clientPublicKey;
     static int severNum = 0;
     private final Database db;
@@ -46,7 +45,6 @@ public class ClientHandler implements Runnable {
 
         pgp = new PGP(serverName);
         serverPublicKey = getStringFromFile(pgp.getPublicKeyFilepath(serverName));
-        serverPrivateKey = getStringFromFile(pgp.getPrivateKeyFilepath(serverName));
 
         try {
             objectOutputStream = new ObjectOutputStream(socket.getOutputStream());
@@ -100,21 +98,23 @@ public class ClientHandler implements Runnable {
      */
     public void listenForMessage() {
         String messageFromClient;
+        boolean runningFlag = true;
 
-        while (socket.isConnected()) {
+        while (socket.isConnected() & runningFlag) {
             try {
                 messageFromClient = pgp.decryptString((String) objectInputStream.readObject(), serverName);
+                System.out.println(messageFromClient);
 
                 if (messageFromClient.length() > 7 &&
-                        messageFromClient.substring(0, 7).equals("sign_in")) {
-                    signInProcess(messageFromClient);
+                        messageFromClient.startsWith("sign_in")) {
+                    runningFlag = signInProcess(messageFromClient);
 
                 } else if (messageFromClient.length() > 7 &&
-                        messageFromClient.substring(0, 7).equals("sign_up")) {
+                        messageFromClient.startsWith("sign_up")) {
                     signUpProcess(messageFromClient);
 
                 } else if (messageFromClient.length() > 17 &&
-                        messageFromClient.substring(0, 17).equals("password_recovery")) {
+                        messageFromClient.startsWith("password_recovery")) {
                     passwordRecovery(messageFromClient);
 
                 } else {
@@ -132,7 +132,7 @@ public class ClientHandler implements Runnable {
      * Обрабатывает процесс входа клиента
      * @param messageFromClient служебная строка с данными от клиента
      */
-    private void signInProcess(String messageFromClient) {
+    private boolean signInProcess(String messageFromClient) {
         String[] str = messageFromClient.split("\\|");
         String username = str[1];
         String password = str[2];
@@ -141,14 +141,17 @@ public class ClientHandler implements Runnable {
             sendMessage("successful_sign_in");
             // добавление подключившегося клиента в общий список
             clientHandlers.add(this);
+
+            sendChatHistory();
+            if (!db.userInChat(clientUsername)) {
+                broadcastMessage(clientUsername + " has connected!", true);
+            }
+
+            return true;
         } else {
             sendMessage("failed_sign_in");
             closeEverything();
-            return;
-        }
-        sendChatHistory();
-        if (!db.userInChat(clientUsername)) {
-            broadcastMessage(clientUsername + " has connected!", true);
+            return false;
         }
     }
 
@@ -156,7 +159,7 @@ public class ClientHandler implements Runnable {
      * Обрабатывает процесс регистрации клиента
      * @param messageFromClient служебная строка с данными от клиента
      */
-    private void signUpProcess(String messageFromClient) {
+    private boolean signUpProcess(String messageFromClient) {
         String[] str = messageFromClient.split("\\|");
         String username = str[1];
         String password = str[2];
@@ -168,35 +171,37 @@ public class ClientHandler implements Runnable {
             String secretCode = pgp.generateSecretCode(6);
 
             emailSender = new EmailSender(email);
-            emailSender.sendMessage("JavaChat registration secret code", "Secret code:" + secretCode);
+            emailSender.sendMessage("JavaChat registration secret code", "Secret code: " + secretCode);
 
             while (socket.isConnected()) {
 
                 String userSecretCode = waitMessage();
+                if (userSecretCode.equals("back")) {
+                    return false;
+                }
 
                 if (secretCode.equals(userSecretCode)) {
                     db.createUser(username, password, email);
                     sendMessage("successful_sign_up");
                     closeEverything();
-                    return;
+                    return true;
                 } else {
                     sendMessage("failed_sign_up");
                 }
-
             }
+
         } else {
             sendMessage("failed_pre_sign_up");
             closeEverything();
-            return;
         }
-
+        return false;
     }
 
     /**
      * Обрабатывает процесс сброса пароля
      * @param messageFromClient служебная строка с данными от кклиента
      */
-    private void passwordRecovery(String messageFromClient) {
+    private boolean passwordRecovery(String messageFromClient) {
         String[] str = messageFromClient.split("\\|");
         String username = str[1];
 
@@ -210,8 +215,11 @@ public class ClientHandler implements Runnable {
                     "Secret code:" + secretCode);
 
             while (socket.isConnected()) {
-
-                String[] str1 = waitMessage().split("\\|");
+                String s = waitMessage();
+                if (s.equals("back")) {
+                    return false;
+                }
+                String[] str1 = s.split("\\|");
                 username = str1[1];
                 String newPassword = str1[2];
                 String userSecretCode = str1[3];
@@ -220,7 +228,7 @@ public class ClientHandler implements Runnable {
                     db.setPassword(username, newPassword);
                     sendMessage("successful_password_recovery");
                     closeEverything();
-                    return;
+                    return true;
                 } else {
                     sendMessage("invalid_password_recovery");
                 }
@@ -230,8 +238,8 @@ public class ClientHandler implements Runnable {
         } else {
             sendMessage("failed_begin_password_recovery");
             closeEverything();
-            return;
         }
+        return false;
     }
 
     /**
@@ -257,6 +265,7 @@ public class ClientHandler implements Runnable {
             return pgp.decryptString((String) objectInputStream.readObject(), serverName);
         } catch (IOException | ClassNotFoundException e) {
             System.err.println("Ошибка получения сообщения: " + e);
+            e.printStackTrace();
             removeClientHandler();
         }
         return "";
