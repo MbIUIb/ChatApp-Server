@@ -27,7 +27,7 @@ public class ClientHandler implements Runnable {
     private final String serverName;
     private String clientUsername;
     private final String serverPublicKey;
-    String clientPublicKey;
+    private String clientPublicKey;
     static int severNum = 0;
     private final Database db;
 
@@ -103,7 +103,6 @@ public class ClientHandler implements Runnable {
         while (socket.isConnected() & runningFlag) {
             try {
                 messageFromClient = pgp.decryptString((String) objectInputStream.readObject(), serverName);
-                System.out.println(messageFromClient);
 
                 if (messageFromClient.length() > 7 &&
                         messageFromClient.startsWith("sign_in")) {
@@ -358,10 +357,12 @@ public class ClientHandler implements Runnable {
 
     public boolean clientInClientHandlers() {
         boolean in = false;
-        for (ClientHandler clientHandler : clientHandlers) {
-            if (clientHandler.clientUsername.equals(clientUsername)) {
-                in = true;
-                break;
+        if (clientHandlers.size() > 0) {
+            for (ClientHandler clientHandler : clientHandlers) {
+                if (clientHandler.clientUsername.equals(clientUsername)) {
+                    in = true;
+                    break;
+                }
             }
         }
         return in;

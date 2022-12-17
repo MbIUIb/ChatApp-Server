@@ -12,11 +12,10 @@ import java.util.Properties;
  * @version 1.0
  */
 public class EmailSender {
-    private final String serverEmailAddress = "mbiuib7@gmail.com";
-    private final String password = "qfeapiphmxyheljm";
+    private final String serverEmailAddress = System.getenv("EMAIL_ADDR");
+    private final String password = System.getenv("EMAIL_PASSWORD");
     private final String emailAddress;
-    private Properties prop;
-    private Session session;
+    private final Session session;
 
     /**
      * конструктор класса {@code EmailSender}.
@@ -25,7 +24,7 @@ public class EmailSender {
      */
     public EmailSender(String emailAddress) {
         this.emailAddress = emailAddress;
-        prop = new Properties();
+        Properties prop = new Properties();
         prop.put("mail.smtp.host", "smtp.gmail.com");
         prop.put("mail.smtp.port", "587");
         prop.put("mail.smtp.auth", "true");

@@ -12,12 +12,12 @@ import java.net.Socket;
  */
 public class Server {
 
-    private ServerSocket serverSocket;
+    private final ServerSocket serverSocket;
     Database db;
 
     /**
-     * Конструктор класса server.Server.
-     * @param serverSocket
+     * Конструктор класса {@code Server}.
+     * @param serverSocket сервер сокет для ожидания подключения
      */
     public Server(ServerSocket serverSocket) {
         this.serverSocket = serverSocket;
@@ -58,6 +58,9 @@ public class Server {
 
             if (serverSocket != null) {
                 serverSocket.close();
+            }
+            if (db != null) {
+                db.close();
             }
 
         } catch (IOException e) {

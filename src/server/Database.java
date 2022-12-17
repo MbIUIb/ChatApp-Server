@@ -14,7 +14,7 @@ import java.util.Map;
  * @version 1.0
  */
 public class Database {
-    private final String dbPath = "jdbc:sqlite:src/server/res/db/database.db";
+    private static final String DB_PATH = "jdbc:sqlite:src/server/res/db/database.db";
     private Connection connection;
 
     /**
@@ -24,7 +24,7 @@ public class Database {
     public Database() {
         try {
             DriverManager.registerDriver(new JDBC());
-            this.connection = DriverManager.getConnection(dbPath);
+            this.connection = DriverManager.getConnection(DB_PATH);
             connection.setAutoCommit(true);
             createUsersTable();
             createChatHistoryTable();
@@ -241,5 +241,6 @@ public class Database {
     public static void main(String[] args) {
         Database database = new Database();
         System.out.println(database.userNotRegistered("Alex"));
+        database.close();
     }
 }
