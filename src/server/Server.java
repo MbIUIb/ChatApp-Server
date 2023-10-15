@@ -3,6 +3,7 @@ package server;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.Scanner;
 
 /**
  * Класс сервера со свойством <b>serverSocket</b>.
@@ -22,6 +23,25 @@ public class Server {
     public Server(ServerSocket serverSocket) {
         this.serverSocket = serverSocket;
         db = new Database();
+        addNewFlagHandler();
+    }
+
+    private void addNewFlagHandler(){
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                // command as "flag flag_name cost"
+                //flag flag{cesar} 100
+                Scanner in = new Scanner(System.in);
+                String instruction = in.nextLine();
+                if (instruction.startsWith("flag")){
+                    String[] str = instruction.split(" ");
+                    db.addNewFlag(str[1], Integer.parseInt(str[2]));
+                }
+                System.out.println("Flag added");
+                in.close();
+            }
+        }).start();
     }
 
     /**
@@ -38,8 +58,6 @@ public class Server {
             while (!serverSocket.isClosed()) {
 
                 Socket socket = serverSocket.accept();
-                System.out.println("Клиент " + socket.getInetAddress() + ":" +
-                        socket.getPort() + " подключился к серверу");
 
                 Thread newClientThread = new Thread(new ClientHandler(socket, db));
                 newClientThread.start();

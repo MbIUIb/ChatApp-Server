@@ -78,7 +78,6 @@ public class ClientHandler implements Runnable {
             // ожидание получения имени клиета
             String username = (String) objectInputStream.readObject();
             this.clientUsername = pgp.decryptString(username, serverName);
-            System.out.println(clientUsername);
 
             // сохранение ключа в файл
             writeStringToFile(clientPublicKey, clientUsername);
@@ -116,14 +115,33 @@ public class ClientHandler implements Runnable {
                         messageFromClient.startsWith("password_recovery")) {
                     runningFlag = passwordRecovery(messageFromClient);
 
-                } else {
-                    broadcastMessage(messageFromClient, false);
+                } else if (messageFromClient.length() >= 20 &&
+                        messageFromClient.startsWith("answer_check|!rating")) {
+                    sendScoreboard();
+                } else if (messageFromClient.length() > 12 &&
+                        messageFromClient.startsWith("answer_check")) {
+                    answerCheck(messageFromClient);
                 }
+//                }else {
+//                    broadcastMessage(messageFromClient, false);
+//                }
 
             } catch (IOException | ClassNotFoundException e) {
                 closeEverything();
                 break;
             }
+        }
+    }
+
+    private void answerCheck(String messageFromClient) {
+        String[] str = messageFromClient.split("\\|");
+        String flag = str[1];
+        int flafId = db.answerCheck(clientUsername, flag);
+
+        if (flafId != 0) {
+            broadcastMessage(clientUsername+" - successful answer, id" + flafId, true);
+        } else {
+            sendMessage("|SERVER|failed answer check, id"+flafId);
         }
     }
 
@@ -142,9 +160,9 @@ public class ClientHandler implements Runnable {
             clientHandlers.add(this);
 
             sendChatHistory();
-            if (!db.userInChat(clientUsername)) {
-                broadcastMessage(clientUsername + " has connected!", true);
-            }
+//            if (!db.userInChat(clientUsername)) {
+//                broadcastMessage(clientUsername + " has connected!", true);
+//            }
 
             return true;
         } else {
@@ -291,7 +309,7 @@ public class ClientHandler implements Runnable {
 
         for (ClientHandler clientHandler : clientHandlers) {
             try {
-                if (!clientHandler.clientUsername.equals(clientUsername)) {
+                if (!clientHandler.clientUsername.equals(clientUsername) | isService) {
 
                     clientHandler.objectOutputStream.writeObject(pgp.encryptString(msg, clientHandler.clientUsername));
                     clientHandler.objectOutputStream.flush();
@@ -320,6 +338,24 @@ public class ClientHandler implements Runnable {
             } catch (IOException e) {
                 removeClientHandler();
             }
+        }
+    }
+
+    private void sendScoreboard() {
+        ArrayList<String[]> rating = db.getScoreboard();
+        String msg = "|SERVER|";
+
+        for (int i = 0; i < rating.size(); i++) {
+            msg += rating.get(i)[0] + " have " + rating.get(i)[1] + "score";
+            if (i < rating.size()-1){
+                msg += "\n";
+            }
+        }
+        try {
+            objectOutputStream.writeObject(pgp.encryptString(msg, clientUsername));
+            objectOutputStream.flush();
+        } catch (IOException e) {
+            removeClientHandler();
         }
     }
 

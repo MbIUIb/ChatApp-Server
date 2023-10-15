@@ -4,6 +4,7 @@ package server;
 import org.sqlite.JDBC;
 
 import java.sql.*;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -27,7 +28,9 @@ public class Database {
             this.connection = DriverManager.getConnection(DB_PATH);
             connection.setAutoCommit(true);
             createUsersTable();
+            createRatingTable();
             createChatHistoryTable();
+            createFlagsTable();
         } catch (SQLException e) {
             System.err.println("Ошибка подключения к БД: " + e);
         }
@@ -51,6 +54,43 @@ public class Database {
 
         } catch (SQLException e) {
             System.err.println("Ошибка создания таблицы 'users': " + e);
+        }
+    }
+
+    public void createRatingTable() {
+        try{
+            String query = "CREATE TABLE IF NOT EXISTS 'rating'" +
+                    "('username' TEXT PRIMARY KEY, 'score' INTEGER)";
+            Statement statement = connection.createStatement();
+            statement.execute(query);
+
+        } catch (SQLException e) {
+            System.err.println("Ошибка создания таблицы 'rating': " + e);
+        }
+    }
+
+    public void createFlagsTable() {
+        try{
+            String query = "CREATE TABLE IF NOT EXISTS 'flags'" +
+                    "('id' INTEGER PRIMARY KEY AUTOINCREMENT, 'flag' TEXT, 'cost' INTEGER)";
+            Statement statement = connection.createStatement();
+            statement.execute(query);
+
+        } catch (SQLException e) {
+            System.err.println("Ошибка создания таблицы 'rating': " + e);
+        }
+    }
+
+    public void addNewFlag(String flag, int cost) {
+        try {
+            String query = "INSERT INTO 'flags' ('flag', 'cost') VALUES(?, ?)";
+            PreparedStatement statement = connection.prepareStatement(query);
+            statement.setString(1, flag);
+            statement.setInt(2, cost);
+            statement.execute();
+
+        } catch (SQLException e) {
+            System.err.println("Ошибка добавления данных: " + e);
         }
     }
 
@@ -92,6 +132,21 @@ public class Database {
             statement.setString(3, email);
             statement.execute();
 
+            createUserRating(username);
+
+        } catch (SQLException e) {
+            System.err.println("Ошибка добавления данных: " + e);
+        }
+    }
+
+    public void createUserRating(String username) {
+        try {
+            String query = "INSERT INTO 'rating' ('username', 'score') VALUES(?, ?)";
+            PreparedStatement statement = connection.prepareStatement(query);
+            statement.setString(1, username);
+            statement.setInt(2, 0);
+            statement.execute();
+
         } catch (SQLException e) {
             System.err.println("Ошибка добавления данных: " + e);
         }
@@ -114,6 +169,64 @@ public class Database {
             return resultSet.getString("username").equals(username);
         } catch (SQLException ignored) {}
         return false;
+    }
+
+    public int answerCheck(String username, String flag) {
+        try {
+            String query = "SELECT cost, id FROM flags WHERE flag=?";
+            PreparedStatement statement = connection.prepareStatement(query);
+            statement.setString(1, flag);
+
+            ResultSet resultSet = statement.executeQuery();
+
+            setScore(username, getScore(username)+resultSet.getInt("cost"));
+            return resultSet.getInt("id");
+        } catch (SQLException ignored) {}
+        return 0;
+    }
+
+    public int getScore(String username) {
+        try {
+            String query = "SELECT score FROM rating WHERE username=?";
+            PreparedStatement statement = connection.prepareStatement(query);
+            statement.setString(1, username);
+
+            ResultSet resultSet = statement.executeQuery();
+            return resultSet.getInt("score");
+        } catch (SQLException ignored) {}
+        return 0;
+    }
+
+    public void setScore(String username, int score) {
+        try {
+            String query = "UPDATE rating SET score=? WHERE username=?";
+            PreparedStatement statement = connection.prepareStatement(query);
+            statement.setInt(1, score);
+            statement.setString(2, username);
+
+            statement.execute();
+        } catch (SQLException e) {
+            System.err.println("Ошибка изменения пароля: " + e);
+        }
+    }
+
+    public ArrayList<String[]> getScoreboard() {
+        try {
+            ArrayList<String[]> messages = new ArrayList<String[]>();
+            Statement statement = connection.createStatement();
+            String query = "SELECT * FROM 'rating' ORDER BY score DESC";
+            ResultSet resultSet = statement.executeQuery(query);
+
+            while (resultSet.next()) {
+                messages.add(new String[]{String.valueOf(resultSet.getInt("username")),
+                        resultSet.getString("score")});
+            }
+            return messages;
+
+        } catch (SQLException e) {
+            System.err.println("Ошибка получения данных: " + e);
+        }
+        return null;
     }
 
     /**
@@ -239,8 +352,9 @@ public class Database {
 
 
     public static void main(String[] args) {
-        Database database = new Database();
-        System.out.println(database.userNotRegistered("Alex"));
-        database.close();
+        Database db = new Database();
+        db.addNewMessage("asd", "ad", "fds");
+        db.addNewFlag("flag{newFlag}", 100);
+        db.close();
     }
 }
