@@ -116,7 +116,7 @@ public class ClientHandler implements Runnable {
                     runningFlag = passwordRecovery(messageFromClient);
 
                 } else if (messageFromClient.length() >= 20 &&
-                        messageFromClient.startsWith("answer_check|!rating")) {
+                        messageFromClient.startsWith("!rating")) {
                     sendScoreboard();
                 } else if (messageFromClient.length() > 12 &&
                         messageFromClient.startsWith("answer_check")) {
