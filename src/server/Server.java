@@ -30,16 +30,36 @@ public class Server {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                // command as "flag flag_name cost"
-                //flag flag{cesar} 100
-                Scanner in = new Scanner(System.in);
-                String instruction = in.nextLine();
-                if (instruction.startsWith("flag")){
-                    String[] str = instruction.split(" ");
-                    db.addNewFlag(str[1], Integer.parseInt(str[2]));
+                System.out.println("Utility for adding flag is ready...\n" +
+                        "command as \"flag flag_name cipherName key cost\" if not key, write 0\n" +
+                        "                example: flag flag{cesar} cesar 3 100");
+                try {
+                    Scanner in = new Scanner(System.in);
+                    String instruction = in.nextLine();
+                    if (instruction.startsWith("flag")) {
+                        String[] str = instruction.split(" ");
+                        switch (str[2]) {
+                            case "cesar":
+                                db.addNewFlag(str[1], StudyCiphers.cesarEncrypt(str[1], Integer.parseInt(str[3])), Integer.parseInt(str[4]));
+                            case "scytale":
+                                db.addNewFlag(str[1], StudyCiphers.scytaleEncrypt(str[1], Integer.parseInt(str[3])), Integer.parseInt(str[4]));
+                            case "a1z26":
+                                db.addNewFlag(str[1], StudyCiphers.a1z26Encrypt(str[1]), Integer.parseInt(str[4]));
+                            case "base64":
+                                db.addNewFlag(str[1], StudyCiphers.base64Encrypt(str[1]), Integer.parseInt(str[4]));
+                            case "base32":
+                                db.addNewFlag(str[1], StudyCiphers.base32Encrypt(str[1]), Integer.parseInt(str[4]));
+                            case "viginereEn":
+                                db.addNewFlag(str[1], StudyCiphers.viginereEnEncrypt(str[1], (str[3])), Integer.parseInt(str[4]));
+                            case "viginereRu":
+                                db.addNewFlag(str[1], StudyCiphers.viginereRuEncrypt(str[1], (str[3])), Integer.parseInt(str[4]));
+                        }
+                    }
+                    System.out.println("Flag added");
+                    in.close();
+                } catch (Exception ignored) {
+                    System.out.println("Add failed");
                 }
-                System.out.println("Flag added");
-                in.close();
             }
         }).start();
     }

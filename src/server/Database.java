@@ -72,7 +72,7 @@ public class Database {
     public void createFlagsTable() {
         try{
             String query = "CREATE TABLE IF NOT EXISTS 'flags'" +
-                    "('id' INTEGER PRIMARY KEY AUTOINCREMENT, 'flag' TEXT, 'cost' INTEGER)";
+                    "('id' INTEGER PRIMARY KEY AUTOINCREMENT, 'flag' TEXT, 'encrypt_flag' TEXT, 'cost' INTEGER)";
             Statement statement = connection.createStatement();
             statement.execute(query);
 
@@ -81,12 +81,13 @@ public class Database {
         }
     }
 
-    public void addNewFlag(String flag, int cost) {
+    public void addNewFlag(String flag, String encryptFlag, int cost) {
         try {
-            String query = "INSERT INTO 'flags' ('flag', 'cost') VALUES(?, ?)";
+            String query = "INSERT INTO 'flags' ('flag', 'encrypt_flag', 'cost') VALUES(?, ?)";
             PreparedStatement statement = connection.prepareStatement(query);
             statement.setString(1, flag);
-            statement.setInt(2, cost);
+            statement.setString(2, encryptFlag);
+            statement.setInt(3, cost);
             statement.execute();
 
         } catch (SQLException e) {
@@ -354,7 +355,7 @@ public class Database {
     public static void main(String[] args) {
         Database db = new Database();
         db.addNewMessage("asd", "ad", "fds");
-        db.addNewFlag("flag{newFlag}", 100);
+        db.addNewFlag("flag{newFlag}", "", 100);
         db.close();
     }
 }
