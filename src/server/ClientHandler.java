@@ -30,6 +30,7 @@ public class ClientHandler implements Runnable {
     private String clientPublicKey;
     static int severNum = 0;
     private final Database db;
+    public static Thread flagHandlerThread;
 
     /**
      * Конструктор класса {@code ClientHandler}. Определяет
@@ -87,6 +88,7 @@ public class ClientHandler implements Runnable {
             System.out.println("Ошибка получения имени клиента!");
         }
 
+        flagHandler();
         listenForMessage();
 
     }
@@ -130,6 +132,25 @@ public class ClientHandler implements Runnable {
                 break;
             }
         }
+    }
+
+    private void flagHandler(){
+        flagHandlerThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    for (int id = db.getSentFlagCount()+1; id <= db.getFlagCount(); id++){
+                        String flag = db.getCryptedFlag(id);
+                        broadcastMessage(flag, true);
+                        db.setSentFlagCount(id);
+                        Thread.sleep(1*1000);
+                    }
+                } catch (Exception ignored) {
+                    System.out.println("Flag sending failed!");
+                }
+            }
+        });
+        flagHandlerThread.start();
     }
 
     private void answerCheck(String messageFromClient) {

@@ -31,6 +31,7 @@ public class Database {
             createRatingTable();
             createChatHistoryTable();
             createFlagsTable();
+            createSentFlagsCountTable();
         } catch (SQLException e) {
             System.err.println("Ошибка подключения к БД: " + e);
         }
@@ -59,8 +60,7 @@ public class Database {
 
     public void createRatingTable() {
         try{
-            String query = "CREATE TABLE IF NOT EXISTS 'rating'" +
-                    "('username' TEXT PRIMARY KEY, 'score' INTEGER)";
+            String query = "CREATE TABLE IF NOT EXISTS 'rating'('username' TEXT PRIMARY KEY, 'score' INTEGER)";
             Statement statement = connection.createStatement();
             statement.execute(query);
 
@@ -81,9 +81,23 @@ public class Database {
         }
     }
 
+    public void createSentFlagsCountTable() {
+        try{
+            String query = "CREATE TABLE IF NOT EXISTS 'sent_flags'('name' TEXT PRIMARY KEY, 'count' INTEGER)";
+            Statement statement = connection.createStatement();
+            statement.execute(query);
+
+            String query1 = "INSERT INTO 'sent_flags' ('name', 'count') VALUES(?, ?)";
+            PreparedStatement statement1 = connection.prepareStatement(query1);
+            statement1.setString(1, "sent_flag_count");
+            statement1.setInt(2, 0);
+            statement1.execute();
+        } catch (SQLException ignored) {}
+    }
+
     public void addNewFlag(String flag, String encryptFlag, int cost) {
         try {
-            String query = "INSERT INTO 'flags' ('flag', 'encrypt_flag', 'cost') VALUES(?, ?)";
+            String query = "INSERT INTO 'flags' ('flag', 'encrypt_flag', 'cost') VALUES(?, ?, ?)";
             PreparedStatement statement = connection.prepareStatement(query);
             statement.setString(1, flag);
             statement.setString(2, encryptFlag);
@@ -92,6 +106,54 @@ public class Database {
 
         } catch (SQLException e) {
             System.err.println("Ошибка добавления данных: " + e);
+        }
+    }
+
+    public String getCryptedFlag(int id){
+        try {
+            String query = "SELECT id, encrypt_flag FROM flags WHERE id=?";
+            PreparedStatement statement = connection.prepareStatement(query);
+            statement.setInt(1, id);
+
+            ResultSet resultSet = statement.executeQuery();
+            return "id" + resultSet.getString("id")+ ": " + resultSet.getString("encrypt_flag");
+        } catch (SQLException ignored) {}
+        return "";
+    }
+
+    public int getFlagCount() {
+        try {
+            String query = "SELECT Count(*) AS count FROM flags";
+            PreparedStatement statement = connection.prepareStatement(query);
+
+            ResultSet resultSet = statement.executeQuery();
+            return resultSet.getInt("count");
+        } catch (SQLException ignored) {}
+        return 0;
+    }
+
+    public int getSentFlagCount() {
+        try {
+            String query = "SELECT count FROM sent_flags WHERE name=?";
+            PreparedStatement statement = connection.prepareStatement(query);
+            statement.setString(1, "sent_flag_count");
+
+            ResultSet resultSet = statement.executeQuery();
+            return resultSet.getInt("count");
+        } catch (SQLException ignored) {}
+        return 0;
+    }
+
+    public void setSentFlagCount(int count) {
+        try {
+            String query = "UPDATE sent_flags SET count=? WHERE name=?";
+            PreparedStatement statement = connection.prepareStatement(query);
+            statement.setInt(1, count);
+            statement.setString(2, "sent_flag_count");
+
+            statement.execute();
+        } catch (SQLException e) {
+            System.err.println(e);
         }
     }
 
@@ -354,8 +416,8 @@ public class Database {
 
     public static void main(String[] args) {
         Database db = new Database();
-        db.addNewMessage("asd", "ad", "fds");
-        db.addNewFlag("flag{newFlag}", "", 100);
+        db.setSentFlagCount(12);
+        System.out.println(db.getSentFlagCount());
         db.close();
     }
 }

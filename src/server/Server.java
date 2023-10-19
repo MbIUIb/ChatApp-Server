@@ -15,6 +15,7 @@ public class Server {
 
     private final ServerSocket serverSocket;
     Database db;
+    private Thread addNewFlagHandlerThread = new Thread();
 
     /**
      * Конструктор класса {@code Server}.
@@ -23,16 +24,18 @@ public class Server {
     public Server(ServerSocket serverSocket) {
         this.serverSocket = serverSocket;
         db = new Database();
-        addNewFlagHandler();
     }
 
+    /**
+     * Тестовая фича (не работает)
+     */
     private void addNewFlagHandler(){
-        new Thread(new Runnable() {
+        addNewFlagHandlerThread = new Thread(new Runnable() {
             @Override
             public void run() {
                 System.out.println("Utility for adding flag is ready...\n" +
                         "command as \"flag flag_name cipherName key cost\" if not key, write 0\n" +
-                        "                example: flag flag{cesar} cesar 3 100");
+                        "example: flag flag{cesar} cesar 3 100\n");
                 try {
                     Scanner in = new Scanner(System.in);
                     String instruction = in.nextLine();
@@ -41,27 +44,36 @@ public class Server {
                         switch (str[2]) {
                             case "cesar":
                                 db.addNewFlag(str[1], StudyCiphers.cesarEncrypt(str[1], Integer.parseInt(str[3])), Integer.parseInt(str[4]));
+                                break;
                             case "scytale":
                                 db.addNewFlag(str[1], StudyCiphers.scytaleEncrypt(str[1], Integer.parseInt(str[3])), Integer.parseInt(str[4]));
+                                break;
                             case "a1z26":
                                 db.addNewFlag(str[1], StudyCiphers.a1z26Encrypt(str[1]), Integer.parseInt(str[4]));
+                                break;
                             case "base64":
                                 db.addNewFlag(str[1], StudyCiphers.base64Encrypt(str[1]), Integer.parseInt(str[4]));
+                                break;
                             case "base32":
                                 db.addNewFlag(str[1], StudyCiphers.base32Encrypt(str[1]), Integer.parseInt(str[4]));
+                                break;
                             case "viginereEn":
                                 db.addNewFlag(str[1], StudyCiphers.viginereEnEncrypt(str[1], (str[3])), Integer.parseInt(str[4]));
+                                break;
                             case "viginereRu":
                                 db.addNewFlag(str[1], StudyCiphers.viginereRuEncrypt(str[1], (str[3])), Integer.parseInt(str[4]));
+                                break;
                         }
                     }
+                    ClientHandler.flagHandlerThread.start();
                     System.out.println("Flag added");
                     in.close();
                 } catch (Exception ignored) {
                     System.out.println("Add failed");
                 }
             }
-        }).start();
+        });
+        addNewFlagHandlerThread.start();
     }
 
     /**
