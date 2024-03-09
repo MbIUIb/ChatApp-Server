@@ -1,4 +1,4 @@
-# Chat Application Client
+# Chat Application Server
 
 This repository contains the server-side code for a chat application with a graphical user interface.
 
